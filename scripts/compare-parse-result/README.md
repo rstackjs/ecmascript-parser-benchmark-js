@@ -26,7 +26,7 @@ Accepts the shared parser adapter output from [`parsers.ts`](../parsers.ts):
 }
 ```
 
-Returns `{ ast: unknown, diagnostics: string[] }` without mutating the input. Pass the parser name to select its normalization: `"SWC"` and `"Babel"` have separate adapters; other parsers use common ESTree normalization. Babel's structural conversion is currently deferred.
+Returns `{ ast: unknown, diagnostics: string[] }` without mutating the input. Pass the parser name to select its normalization: `"SWC"` and `"Babel"` have separate adapters; other parsers use common ESTree normalization. Babel converts literal nodes, object/class members, directives, optional chains and namespace exports into ESTree representations. Unknown nodes and fields remain visible in comparisons.
 
 If a parser throws, put its error message in `diagnostics` and use `program: undefined`, then call this same function. Existing diagnostics are retained; a missing AST without diagnostics produces `"Returned no AST"`. Exceptions from normalization itself propagate to the caller.
 
@@ -39,7 +39,7 @@ const failure = normalizeParseResult({
 // { ast: undefined, diagnostics: ["Unexpected token"] }
 ```
 
-Node metadata such as positions and comments is excluded. Known defaults, regex flags, BigInt values and SWC node representations are normalized. Child order, literal values, type annotations and unknown fields are retained. Diagnostics preserve wording after whitespace and ANSI colors are normalized.
+Node metadata such as positions and comments is excluded. Known defaults, regex flags, BigInt values and SWC node representations are normalized. SWC's string transport encoding is decoded, including lone surrogates and escaped `\uXXXX` text. JSX text and quoted attribute values use one pass of entity decoding, preserving whitespace and unknown entities. Child order, literal values, type annotations and unknown fields are retained. Diagnostics preserve wording after whitespace and ANSI colors are normalized.
 
 ## `compareParseResult(A, B)`
 

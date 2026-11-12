@@ -66,6 +66,8 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
       sourceType,
       plugins: babelPlugins,
       createParenthesizedExpressions: true,
+      // Ambient modules in script-mode declaration files can contain exports.
+      allowImportExportEverywhere: isDts,
     });
     return { program: parsed.program, comments: parsed.comments ?? [], diagnostics: [] };
   };

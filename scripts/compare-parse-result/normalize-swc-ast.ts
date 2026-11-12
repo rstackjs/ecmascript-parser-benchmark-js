@@ -1,4 +1,5 @@
 import { isRecord, normalizeAst } from "./normalize-ast.ts";
+import { normalizeSwcString } from "./normalize-swc-string.ts";
 
 type Node = Record<string, unknown>;
 const LITERALS = new Set(["StringLiteral", "NumericLiteral", "BooleanLiteral", "NullLiteral", "BigIntLiteral", "RegExpLiteral"]);
@@ -65,6 +66,7 @@ export function normalizeSwcAst(ast: unknown): unknown {
       return visit(node.expression);
     } else if (LITERALS.has(originalType)) {
       node.type = "Literal";
+      if (originalType === "StringLiteral" && typeof node.value === "string") node.value = normalizeSwcString(node.value);
       if (originalType === "NullLiteral") node.value = null;
       if (originalType === "RegExpLiteral") {
         node.regex = { pattern: node.pattern, flags: node.flags };
@@ -99,13 +101,16 @@ export function normalizeSwcAst(ast: unknown): unknown {
       if (Array.isArray(node.body)) node.body = { type: "ClassBody", body: node.body };
       rename(node, "typeParams", "typeParameters"); rename(node, "superTypeParams", "superTypeArguments");
     } else if (originalType === "ClassMethod" || originalType === "PrivateMethod" || originalType === "Constructor") {
-      node.type = "MethodDefinition";
+      node.type = node.isAbstract ? "TSAbstractMethodDefinition" : "MethodDefinition";
       node.value = functionValue(isRecord(node.function) ? node.function : node);
+      if (isRecord(node.value) && node.value.body == null) node.value.type = "TSEmptyBodyFunctionExpression";
+      delete node.isAbstract;
       node.kind = originalType === "Constructor" ? "constructor" : node.kind === "getter" ? "get" : node.kind === "setter" ? "set" : "method";
       node.computed = isRecord(node.key) && node.key.type === "Computed";
       for (const field of ["function", "params", "body", "async", "generator", "typeParameters", "returnType"]) delete node[field];
     } else if (originalType === "ClassProperty" || originalType === "PrivateProperty") {
-      node.type = "PropertyDefinition"; node.computed = isRecord(node.key) && node.key.type === "Computed";
+      node.type = node.isAbstract ? "TSAbstractPropertyDefinition" : "PropertyDefinition"; node.computed = isRecord(node.key) && node.key.type === "Computed";
+      delete node.isAbstract;
     } else if (originalType === "StaticBlock" && isRecord(node.body)) {
       node.body = node.body.stmts ?? node.body.body;
     } else if (originalType === "KeyValueProperty" || originalType === "KeyValuePatternProperty") {
@@ -133,8 +138,10 @@ export function normalizeSwcAst(ast: unknown): unknown {
       node.property = { type: "Identifier", name };
       delete node.kind;
     } else if (originalType === "TemplateElement") {
-      node.value = { raw: node.raw, cooked: node.cooked };
+      node.value = { raw: node.raw, cooked: typeof node.cooked === "string" ? normalizeSwcString(node.cooked) : node.cooked };
       delete node.raw; delete node.cooked;
+    } else if (originalType === "JSXText" && typeof node.value === "string") {
+      node.value = normalizeSwcString(node.value);
     } else if (originalType === "TaggedTemplateExpression") {
       rename(node, "template", "quasi");
       rename(node, "typeParameters", "typeArguments");
@@ -153,6 +160,8 @@ export function normalizeSwcAst(ast: unknown): unknown {
     } else if (originalType === "ExportDefaultDeclaration") {
       rename(node, "decl", "declaration");
       if (isRecord(node.declaration) && ["ClassExpression", "FunctionExpression"].includes(String(node.declaration.type))) node.declaration = { ...node.declaration, type: String(node.declaration.type).replace("Expression", "Declaration") };
+    } else if (originalType === "ExportNamedDeclaration" && Array.isArray(node.specifiers) && node.specifiers.length === 1 && isRecord(node.specifiers[0]) && node.specifiers[0].type === "ExportNamespaceSpecifier") {
+      node.type = "ExportAllDeclaration"; node.exported = node.specifiers[0].name; delete node.specifiers;
     } else if (originalType === "ImportSpecifier") {
       if (node.imported == null) node.imported = node.local;
       node.importKind = node.isTypeOnly ? "type" : "value"; delete node.isTypeOnly;

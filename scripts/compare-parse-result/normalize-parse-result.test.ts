@@ -8,19 +8,12 @@ import type { SourceLang } from "yuku";
 const fixtures = new URL("./fixtures/normalize/", import.meta.url);
 const output = (program: unknown, diagnostics: string[] = []): ParseOutput => ({ program, diagnostics, comments: null });
 
-// These differences must remain visible: do not change AST values to match Oxc.
-const VALUE_DIFFERENCES: Record<string, { parsers: string[]; expected: string; actual: string }> = {
-  "escaped-unicode.js": { parsers: ["SWC"], expected: "\\u2028", actual: "\\\\u2028" },
-  "jsx-spaces.jsx": { parsers: ["SWC", "Yuku"], expected: "\n  hello &amp; world\n  ", actual: "\n  hello & world\n  " },
-};
-
 for (const file of (await readdir(fixtures)).sort()) {
   test(`parser outputs: ${file}`, async () => {
     const source = await readFile(new URL(file, fixtures), "utf-8");
     const lang: SourceLang = file.endsWith(".d.ts") ? "dts" : file.endsWith(".tsx") ? "tsx" : file.endsWith(".jsx") ? "jsx" : file.endsWith(".ts") ? "ts" : "js";
     const tasks = createParserTasks(source, lang);
-    // Babel's structural conversion is intentionally outside this test matrix.
-    const results = parserNamesFor(lang).filter(name => name !== "Babel").map(name => {
+    const results = parserNamesFor(lang).map(name => {
       // Keep normalization outside this catch: adapter bugs must fail the test.
       let parsed: ParseOutput;
       try { parsed = tasks[name]!(); }
@@ -29,10 +22,12 @@ for (const file of (await readdir(fixtures)).sort()) {
     });
     if (file.startsWith("invalid-")) {
       if (file === "invalid-export.js") {
-        // Acorn checks unresolved exports during parsing; the native parsers
+        // Acorn and Babel check unresolved exports during parsing; native parsers
         // leave that check to semantic analysis. The preflight must expose it.
-        assert.ok(results.find(result => result.name === "Acorn")!.diagnostics.length);
-        for (const result of results.filter(result => result.name !== "Acorn")) assert.equal(result.diagnostics.length, 0, result.name);
+        for (const result of results) {
+          if (["Acorn", "Babel"].includes(result.name)) assert.ok(result.diagnostics.length, result.name);
+          else assert.equal(result.diagnostics.length, 0, result.name);
+        }
         assert.throws(() => compareParseResult(results.find(result => result.name === "Oxc")!, results.find(result => result.name === "Acorn")!), /diagnostics/);
       } else {
         for (const result of results) assert.ok(result.diagnostics.length, result.name);
@@ -43,17 +38,7 @@ for (const file of (await readdir(fixtures)).sort()) {
     for (const result of results) assert.equal(result.diagnostics.length, 0, result.name);
     const reference = results.find(result => result.name === "Oxc")!;
     for (const result of results.filter(result => result.name !== "Oxc")) {
-      const knownDifference = VALUE_DIFFERENCES[file];
-      if (knownDifference?.parsers.includes(result.name)) {
-        assert.throws(() => compareParseResult(reference, result), (error: unknown) => {
-          assert.ok(error instanceof Error);
-          assert.match(error.message, /\.value: expected/);
-          assert.ok(error.message.includes(`expected ${JSON.stringify(knownDifference.expected)}, actual ${JSON.stringify(knownDifference.actual)}`));
-          return true;
-        }, `${result.name} must retain the value difference`);
-      } else {
-        assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
-      }
+      assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
     }
   });
 }
@@ -76,7 +61,7 @@ test("normalization preserves values, child order, optionality, and unknown fiel
   for (const [left, right, lang] of sources) {
     const leftTasks = createParserTasks(left, lang);
     const rightTasks = createParserTasks(right, lang);
-    for (const parser of parserNamesFor(lang).filter(name => name !== "Babel")) {
+    for (const parser of parserNamesFor(lang)) {
       const a = normalizeParseResult(leftTasks[parser]!(), parser);
       const b = normalizeParseResult(rightTasks[parser]!(), parser);
       assert.equal(a.diagnostics.length, 0);
@@ -93,17 +78,42 @@ test("the public normalizer dispatches Babel ASTs and diagnostics to its adapter
   const parsed = output({ type: "StringLiteral", value: "x", start: 0 }, ["\u001b[31mUnexpected\n token\u001b[0m"]);
   const result = normalizeParseResult(parsed, "Babel");
   assert.deepEqual(result.diagnostics, ["Unexpected token"]);
-  assert.equal((result.ast as { type: string }).type, "StringLiteral");
+  assert.equal((result.ast as { type: string }).type, "Literal");
   assert.deepEqual(parsed.diagnostics, ["\u001b[31mUnexpected\n token\u001b[0m"]);
 });
 
 test("normalization is deterministic, idempotent, and leaves parser outputs intact", () => {
-  const original = createParserTasks("const x = { key: 1, ...other };", "js").SWC!();
-  const before = JSON.stringify(original);
-  const first = normalizeParseResult(original, "SWC");
-  assert.equal(JSON.stringify(original), before);
-  assert.deepEqual(first, normalizeParseResult(original, "SWC"));
-  assert.deepEqual(first, normalizeParseResult(output(first.ast, first.diagnostics)));
+  const tasks = createParserTasks('"use strict"; const x = { key: 1, ...other };', "js");
+  for (const parser of ["Babel", "SWC"]) {
+    const original = tasks[parser]!();
+    const before = JSON.stringify(original);
+    const first = normalizeParseResult(original, parser);
+    assert.equal(JSON.stringify(original), before);
+    assert.deepEqual(first, normalizeParseResult(original, parser));
+    assert.deepEqual(first, normalizeParseResult(output(first.ast, first.diagnostics)));
+  }
+});
+
+test("SWC transport decoding preserves literal escapes and lone surrogates", () => {
+  const tasks = createParserTasks(String.raw`const values = ["\uD800", "\\uD800", "\\\\u2028", "\\uGGGG", "\\u123", "\\n"];`, "js");
+  const result = normalizeParseResult(tasks.SWC!(), "SWC");
+  const ast = result.ast as { body: { declarations: { init: { elements: { value: string }[] } }[] }[] };
+  assert.deepEqual(ast.body[0]!.declarations[0]!.init.elements.map(node => node.value),
+    ["\uD800", "\\uD800", "\\\\u2028", "\\uGGGG", "\\u123", "\\n"]);
+  assert.throws(() => compareParseResult(
+    normalizeParseResult(output({ type: "StringLiteral", value: "\\uD800" }), "SWC"),
+    normalizeParseResult(output({ type: "StringLiteral", value: "\\\\uD800" }), "SWC")), /value/);
+});
+
+test("JSX entities decode once without hiding unexpected value differences", () => {
+  const raw = "&amp;amp; &#38; &#x26; &unknown;\n  ";
+  const cooked = "&amp; & & &unknown;\n  ";
+  const a = normalizeParseResult(output({ type: "JSXText", raw, value: raw }));
+  const b = normalizeParseResult(output({ type: "JSXText", raw, value: cooked }));
+  assert.deepEqual((a.ast as { value: string }).value, cooked);
+  assert.doesNotThrow(() => compareParseResult(a, b));
+  assert.deepEqual(a, normalizeParseResult(output(a.ast)));
+  assert.throws(() => compareParseResult(a, normalizeParseResult(output({ type: "JSXText", raw, value: "wrong" }))), /value/);
 });
 
 test("public API compares ASTs and diagnostic content", () => {
