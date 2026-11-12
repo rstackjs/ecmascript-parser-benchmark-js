@@ -2,27 +2,7 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { FILES, createParserTasks, parserNamesFor } from "./parsers.ts";
 import type { SourceLang } from "yuku";
-
-// Only discard representation metadata. Do not synthesize nodes or use the
-// reference AST to repair another parser's output.
-const METADATA = new Set([
-  "loc", "start", "end", "span", "range", "ctxt", "bodyCtxt", "extra",
-  "parent", "tokens", "raw", "comments", "leadingComments", "trailingComments",
-  "innerComments",
-]);
-
-export function normalizeAst(value: unknown): unknown {
-  if (typeof value === "bigint") return { bigint: value.toString() };
-  if (value instanceof RegExp) return { pattern: value.source, flags: value.flags };
-  if (Array.isArray(value)) return value.map(normalizeAst);
-  if (value === null || typeof value !== "object") return value;
-  const output: Record<string, unknown> = {};
-  for (const key of Object.keys(value).sort()) {
-    const item = (value as Record<string, unknown>)[key];
-    if (!METADATA.has(key) && item !== undefined) output[key] = normalizeAst(item);
-  }
-  return output;
-}
+import { normalizeParseResult, normalizeParseFailure, type NormalizedParseResult } from "./normalize-parse-result.ts";
 
 export interface Difference {
   path: string;
@@ -75,7 +55,7 @@ function describe(value: unknown): string {
 }
 
 export function assertMatchingAst(reference: unknown, actual: unknown, file: string, parser: string): void {
-  const difference = firstDifference(normalizeAst(reference), normalizeAst(actual));
+  const difference = firstDifference(reference, actual);
   if (difference) {
     throw new Error(`${file}: ${parser} differs from Oxc at ${difference.path}: expected ${describe(difference.expected)}, actual ${describe(difference.actual)}`);
   }
@@ -87,24 +67,22 @@ function fileConfig(input: string): { path: string; lang: SourceLang } {
   return { path: input, lang };
 }
 
-export interface ParseCheck {
+export interface ParseCheck extends NormalizedParseResult {
   name: string;
-  program: unknown;
-  errors: string[];
 }
 
 export function assertMatchingParseErrors(results: ParseCheck[], file: string): void {
   const reference = results.find(result => result.name === "Oxc");
   if (!reference) throw new Error(`${file}: missing Oxc result`);
   for (const result of results) {
-    if (result.errors.length !== reference.errors.length) {
-      throw new Error(`${file}: ${result.name} parse errors differ from Oxc: expected ${reference.errors.length}, actual ${result.errors.length}; Oxc: ${reference.errors.join("; ") || "none"}; ${result.name}: ${result.errors.join("; ") || "none"}`);
+    if (result.diagnostics.length !== reference.diagnostics.length) {
+      throw new Error(`${file}: ${result.name} parse errors differ from Oxc: expected ${reference.diagnostics.length}, actual ${result.diagnostics.length}; Oxc: ${reference.diagnostics.join("; ") || "none"}; ${result.name}: ${result.diagnostics.join("; ") || "none"}`);
     }
   }
   // Equal counts do not prove equivalent diagnostics. Invalid inputs must never
   // enter timing, even when all parsers reject them.
-  if (reference.errors.length) {
-    throw new Error(`${file}: all parsers report parse errors; timing blocked. ${results.map(result => `${result.name}: ${result.errors.join("; ")}`).join(" | ")}`);
+  if (reference.diagnostics.length) {
+    throw new Error(`${file}: all parsers report parse errors; timing blocked. ${results.map(result => `${result.name}: ${result.diagnostics.join("; ")}`).join(" | ")}`);
   }
 }
 
@@ -114,18 +92,15 @@ export async function preflightFile(input: string): Promise<void> {
   const tasks = createParserTasks(source, file.lang);
   const results: ParseCheck[] = parserNamesFor(file.lang).map(name => {
     try {
-      const output = tasks[name]!();
-      const errors = [...output.diagnostics];
-      if (output.program === null || typeof output.program !== "object") errors.push("Returned no AST");
-      return { name, program: output.program, errors };
+      return { name, ...normalizeParseResult(tasks[name]!()) };
     } catch (error) {
-      return { name, program: undefined, errors: [error instanceof Error ? error.message : String(error)] };
+      return { name, ...normalizeParseFailure(error) };
     }
   });
   assertMatchingParseErrors(results, file.path);
   const reference = results.find(result => result.name === "Oxc")!;
   for (const result of results) {
-    if (result.name !== "Oxc") assertMatchingAst(reference.program, result.program, file.path, result.name);
+    if (result.name !== "Oxc") assertMatchingAst(reference.ast, result.ast, file.path, result.name);
   }
 }
 
