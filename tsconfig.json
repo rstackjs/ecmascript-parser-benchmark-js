@@ -19,6 +19,6 @@
     "node_modules",
     "**/*.js",
     "files/",
-    "scripts/compare-parser-behavior/fixtures/"
+    "scripts/compare-parse-result/fixtures/"
   ]
 }
