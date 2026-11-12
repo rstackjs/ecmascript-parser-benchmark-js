@@ -1,4 +1,4 @@
-import type { ParseOutput } from "./parsers.ts";
+import type { ParseOutput } from "../parsers.ts";
 import { normalizeAst } from "./normalize-ast.ts";
 import { normalizeBabelParseResult } from "./normalize-babel-parse-result.ts";
 import { normalizeSwcParseResult } from "./normalize-swc-parse-result.ts";

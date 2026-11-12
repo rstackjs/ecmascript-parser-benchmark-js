@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { FILES, createParserTasks, parserNamesFor } from "./compare-parser-behavior/parsers.ts";
+import { FILES, createParserTasks, parserNamesFor } from "./parsers.ts";
 import { assertMatchingAst, assertMatchingParseErrors, type ParseCheck } from "./compare-parser-behavior/compare-parse-result.ts";
 import type { SourceLang } from "yuku";
 import { normalizeParseResult, normalizeParseFailure } from "./compare-parser-behavior/normalize-parse-result.ts";

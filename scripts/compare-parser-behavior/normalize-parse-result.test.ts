@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
-import { createParserTasks, parserNamesFor, type ParseOutput } from "./parsers.ts";
+import { createParserTasks, parserNamesFor, type ParseOutput } from "../parsers.ts";
 import { normalizeAst, normalizeParseFailure, normalizeParseResult } from "./normalize-parse-result.ts";
 import { normalizeBabelParseResult } from "./normalize-babel-parse-result.ts";
 import { assertMatchingParseErrors, firstDifference } from "./compare-parse-result.ts";

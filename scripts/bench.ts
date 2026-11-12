@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { Bench } from "tinybench";
 import * as oxc from "oxc-parser";
 import type { SourceLang } from "yuku";
-import { FILES, createParserTasks, parserNamesFor, parserLabel } from "./compare-parser-behavior/parsers.ts";
+import { FILES, createParserTasks, parserNamesFor, parserLabel } from "./parsers.ts";
 const BENCH_TIME = Number(process.env.BENCH_TIME ?? 10000);
 const BENCH_WARMUP = Number(process.env.BENCH_WARMUP ?? 2000);
 const BENCH_RUNS = Number(process.env.BENCH_RUNS ?? 3);
