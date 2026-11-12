@@ -164,4 +164,4 @@ The `Oxc` benchmark uses the default AST transfer path. `Oxc (raw transfer)` ena
 
 All parsers run under the same Node.js runtime. Raw transfer support is checked before benchmarking; unsupported platforms fail explicitly. Node.js 22.18 or later is required to execute the TypeScript benchmark scripts directly.
 
-The published results use Node.js for every parser. Regenerate all results together with `bun bench` when updating the runtime or parser versions.
+The published results use Node.js for every parser.
