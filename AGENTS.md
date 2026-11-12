@@ -5,4 +5,4 @@
 - Do not include subjective judgments, rankings expressed as opinions, or speculative explanations of performance differences, such as "why xxx is slower".
 - Regenerate all results together with `pnpm bench` when updating the runtime or parser versions.
 
-- Run `pnpm preflight` before recording timings. Generated JSON snapshots under `ast/` are local verification artifacts and must not be committed. AST schema differences alone do not prove a parser bug.
+- Run `pnpm preflight` before recording timings. Preflight performs a fixed metadata normalization and stops on the first AST difference. Do not add fixture-specific conversions or repair outputs using another parser's AST. AST schema differences alone do not prove a parser bug.

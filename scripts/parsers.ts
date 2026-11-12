@@ -30,19 +30,19 @@ function isTsLang(lang: SourceLang): boolean {
 }
 
 export function parserNamesFor(lang: SourceLang): string[] {
-  return isTsLang(lang)
+  return isTsLang(lang) || lang === "jsx"
     ? ["Babel", "Oxc", "Oxc (raw transfer)", "SWC", "SWC Next", "Yuku"]
     : ["Acorn", "Babel", "Oxc", "Oxc (raw transfer)", "SWC", "SWC Next", "Yuku"];
 }
 
 export function createParserTasks(source: string, lang: SourceLang): Record<string, () => ParseOutput> {
   const isTs = isTsLang(lang);
-  const isJsx = lang === "tsx";
+  const isJsx = lang === "tsx" || lang === "jsx";
   const isDts = lang === "dts";
   const sourceType = isDts ? "script" : "module";
   const tasks: Record<string, () => ParseOutput> = {};
 
-  if (!isTs) {
+  if (!isTs && !isJsx) {
     tasks.Acorn = () => {
       const comments: FlatComment[] = [];
       const program = acorn.parse(source, {
@@ -67,7 +67,7 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
     return { program: parsed.program, comments: parsed.comments ?? [], diagnostics: [] };
   };
 
-  const oxcFilename = isDts ? "bench.d.ts" : isJsx ? "bench.tsx" : isTs ? "bench.ts" : "bench.js";
+  const oxcFilename = isDts ? "bench.d.ts" : isJsx ? (isTs ? "bench.tsx" : "bench.jsx") : isTs ? "bench.ts" : "bench.js";
   tasks.Oxc = () => {
     const parsed = oxc.parseSync(oxcFilename, source, {
       lang,
@@ -92,7 +92,7 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
 
   const swcSyntax: SwcParseOptions & { isModule?: boolean } = isTs
     ? { syntax: "typescript", tsx: isJsx, isModule: !isDts }
-    : { syntax: "ecmascript", isModule: true };
+    : { syntax: "ecmascript", jsx: isJsx, isModule: true };
   tasks.SWC = () => {
     const program = swc.parseSync(source, { ...swcSyntax, comments: true });
     return { program, comments: null, diagnostics: [] };
