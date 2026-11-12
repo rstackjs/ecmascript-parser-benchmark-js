@@ -1,0 +1,22 @@
+{
+  "typescript": {
+    "path": "files/typescript.js",
+    "lang": "js",
+    "source_url": "https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/typescript.js"
+  },
+  "checker": {
+    "path": "files/checker.ts",
+    "lang": "ts",
+    "source_url": "https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/checker.ts"
+  },
+  "lib_dom": {
+    "path": "files/lib.dom.d.ts",
+    "lang": "dts",
+    "source_url": "https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/lib.dom.d.ts"
+  },
+  "react": {
+    "path": "files/react.js",
+    "lang": "js",
+    "source_url": "https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/react.js"
+  }
+}

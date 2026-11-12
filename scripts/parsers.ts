@@ -5,12 +5,9 @@ import swc from "@swc/core";
 import { parseSync as swcNextParseSync, type Lang } from "@swc-next/parser";
 import type { ParseOptions as SwcParseOptions } from "@swc/types";
 import { parse as yukuParseSync, type SourceLang } from "yuku";
-export const FILES: Record<string, { path: string; lang: SourceLang }> = {
-  typescript: { path: "files/typescript.js", lang: "js" },
-  checker: { path: "files/checker.ts", lang: "ts" },
-  lib_dom: { path: "files/lib.dom.d.ts", lang: "dts" },
-  react: { path: "files/react.js", lang: "js" },
-};
+import files from "./files.json" with { type: "json" };
+
+export const FILES = files as Record<string, { path: string; lang: SourceLang; source_url: string }>;
 
 export interface FlatComment {
   type: string;

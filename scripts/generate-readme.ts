@@ -2,9 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { arch, cpus, platform, release, totalmem } from "node:os";
 import { join } from "node:path";
-
-const FILES_SOURCE_URL_PREFIX =
-  "https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main";
+import FILES from "./files.json" with { type: "json" };
 
 const PARSERS = {
   acorn: {
@@ -65,25 +63,6 @@ const NAME_TO_KEY: Record<string, string> = {
   "SWC Next": "swc_next",
   Yuku: "yuku",
 };
-
-const FILES = {
-  typescript: {
-    path: "files/typescript.js",
-    source_url: `${FILES_SOURCE_URL_PREFIX}/typescript.js`,
-  },
-  checker: {
-    path: "files/checker.ts",
-    source_url: `${FILES_SOURCE_URL_PREFIX}/checker.ts`,
-  },
-  lib_dom: {
-    path: "files/lib.dom.d.ts",
-    source_url: `${FILES_SOURCE_URL_PREFIX}/lib.dom.d.ts`,
-  },
-  react: {
-    path: "files/react.js",
-    source_url: `${FILES_SOURCE_URL_PREFIX}/react.js`,
-  },
-} as const;
 
 type FileKey = keyof typeof FILES;
 
