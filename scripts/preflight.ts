@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { FILES, createParserTasks, parserNamesFor } from "./parsers.ts";
-import { assertMatchingAst, assertMatchingParseErrors, type ParseCheck } from "./compare-parse-result/compare-parse-result.ts";
+import { normalizeParseResult, compareParseResult, type NormalizedParseResult } from "./compare-parse-result/index.ts";
 import type { SourceLang } from "yuku";
-import { normalizeParseResult, normalizeParseFailure } from "./compare-parse-result/normalize-parse-result.ts";
+import { normalizeParseFailure } from "./compare-parse-result/parse-result.ts";
 
 function fileConfig(input: string): { path: string; lang: SourceLang } {
   if (FILES[input]) return FILES[input];
@@ -15,7 +15,7 @@ export async function preflightFile(input: string): Promise<void> {
   const file = fileConfig(input);
   const source = await readFile(file.path, "utf-8");
   const tasks = createParserTasks(source, file.lang);
-  const results: ParseCheck[] = parserNamesFor(file.lang).map(name => {
+  const results: (NormalizedParseResult & { name: string })[] = parserNamesFor(file.lang).map(name => {
     let output;
     try {
       output = tasks[name]!();
@@ -25,11 +25,13 @@ export async function preflightFile(input: string): Promise<void> {
     // A normalization bug is not a parser diagnostic.
     return { name, ...normalizeParseResult(output, name) };
   });
-  assertMatchingParseErrors(results, file.path);
   const reference = results.find(result => result.name === "Oxc")!;
   for (const result of results) {
-    if (result.name !== "Oxc") assertMatchingAst(reference.ast, result.ast, file.path, result.name);
+    if (result.name === "Oxc") continue;
+    try { compareParseResult(reference, result); }
+    catch (error) { throw new Error(`${file.path}: ${result.name} versus Oxc: ${error instanceof Error ? error.message : String(error)}`); }
   }
+  if (reference.diagnostics.length) throw new Error(`${file.path}: parse errors present; timing blocked: ${reference.diagnostics.join("; ")}`);
 }
 
 async function main() {

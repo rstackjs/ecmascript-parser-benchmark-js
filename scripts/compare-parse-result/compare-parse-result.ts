@@ -51,29 +51,15 @@ function describe(value: unknown): string {
   return text.length > 160 ? `${text.slice(0, 157)}...` : text;
 }
 
-export function assertMatchingAst(reference: unknown, actual: unknown, file: string, parser: string): void {
-  const difference = firstDifference(reference, actual);
+/** Compare two normalized results. Return normally on equality; throw on a difference. */
+export function compareParseResult(
+  expected: NormalizedParseResult,
+  actual: NormalizedParseResult,
+): void {
+  // Diagnostics are part of the result, not only their count.
+  const difference = firstDifference(expected.diagnostics, actual.diagnostics, "$.diagnostics")
+    ?? firstDifference(expected.ast, actual.ast, "$.ast");
   if (difference) {
-    throw new Error(`${file}: ${parser} differs from Oxc at ${difference.path}: expected ${describe(difference.expected)}, actual ${describe(difference.actual)}`);
+    throw new Error(`Parse results differ at ${difference.path}: expected ${describe(difference.expected)}, actual ${describe(difference.actual)}`);
   }
 }
-
-export interface ParseCheck extends NormalizedParseResult {
-  name: string;
-}
-
-export function assertMatchingParseErrors(results: ParseCheck[], file: string): void {
-  const reference = results.find(result => result.name === "Oxc");
-  if (!reference) throw new Error(`${file}: missing Oxc result`);
-  for (const result of results) {
-    if (result.diagnostics.length !== reference.diagnostics.length) {
-      throw new Error(`${file}: ${result.name} parse errors differ from Oxc: expected ${reference.diagnostics.length}, actual ${result.diagnostics.length}; Oxc: ${reference.diagnostics.join("; ") || "none"}; ${result.name}: ${result.diagnostics.join("; ") || "none"}`);
-    }
-  }
-  // Equal counts do not prove equivalent diagnostics. Invalid inputs must never
-  // enter timing, even when all parsers reject them.
-  if (reference.diagnostics.length) {
-    throw new Error(`${file}: all parsers report parse errors; timing blocked. ${results.map(result => `${result.name}: ${result.diagnostics.join("; ")}`).join(" | ")}`);
-  }
-}
-

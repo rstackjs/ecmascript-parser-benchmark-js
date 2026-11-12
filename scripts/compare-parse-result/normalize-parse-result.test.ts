@@ -4,7 +4,7 @@ import test from "node:test";
 import { createParserTasks, parserNamesFor, type ParseOutput } from "../parsers.ts";
 import { normalizeAst, normalizeParseFailure, normalizeParseResult } from "./normalize-parse-result.ts";
 import { normalizeBabelParseResult } from "./normalize-babel-parse-result.ts";
-import { assertMatchingParseErrors, firstDifference } from "./compare-parse-result.ts";
+import { compareParseResult, firstDifference } from "./compare-parse-result.ts";
 import type { SourceLang } from "yuku";
 
 const fixtures = new URL("./fixtures/normalize/", import.meta.url);
@@ -35,14 +35,14 @@ for (const file of (await readdir(fixtures)).sort()) {
         // leave that check to semantic analysis. The preflight must expose it.
         assert.ok(results.find(result => result.name === "Acorn")!.diagnostics.length);
         for (const result of results.filter(result => result.name !== "Acorn")) assert.equal(result.diagnostics.length, 0, result.name);
-        assert.throws(() => assertMatchingParseErrors(results, file), /parse errors differ/);
+        assert.throws(() => compareParseResult(results.find(result => result.name === "Oxc")!, results.find(result => result.name === "Acorn")!), /diagnostics/);
       } else {
         for (const result of results) assert.ok(result.diagnostics.length, result.name);
-        assert.throws(() => assertMatchingParseErrors(results, file), /timing blocked/);
+
       }
       return;
     }
-    assertMatchingParseErrors(results, file);
+    for (const result of results) assert.equal(result.diagnostics.length, 0, result.name);
     const reference = results.find(result => result.name === "Oxc")!;
     for (const result of results.filter(result => result.name !== "Oxc")) {
       const difference = firstDifference(reference.ast, result.ast);
@@ -106,4 +106,13 @@ test("normalization is deterministic, idempotent, and leaves parser outputs inta
   assert.equal(JSON.stringify(original), before);
   assert.deepEqual(first, normalizeParseResult(original, "SWC"));
   assert.deepEqual(first.ast, normalizeAst(first.ast));
+});
+
+test("public API compares ASTs and diagnostic content", () => {
+  const a = normalizeParseResult(output({ type: "Identifier", name: "x" }));
+  const b = normalizeParseResult(output({ type: "Identifier", name: "y" }));
+  assert.doesNotThrow(() => compareParseResult(a, a));
+  assert.throws(() => compareParseResult(a, b), /\$\.ast\.name/);
+  assert.throws(() => compareParseResult(a, { ...a, diagnostics: ["error"] }), /\$\.diagnostics\.length/);
+  assert.throws(() => compareParseResult({ ...a, diagnostics: ["first"] }, { ...a, diagnostics: ["second"] }), /\$\.diagnostics\[0\]/);
 });
