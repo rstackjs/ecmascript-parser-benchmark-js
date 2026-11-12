@@ -11,7 +11,9 @@
     "bench:react": "node scripts/bench.ts react",
     "readme": "node scripts/generate-readme.ts",
     "update-parsers": "pnpm update --latest",
-    "type-check": "tsgo --noEmit"
+    "type-check": "tsgo --noEmit",
+    "preflight": "node scripts/preflight.ts",
+    "test:normalize": "node --test scripts/compare-parse-result/normalize-parse-result.test.ts"
   },
   "dependencies": {
     "@babel/parser": "^8.1.0",

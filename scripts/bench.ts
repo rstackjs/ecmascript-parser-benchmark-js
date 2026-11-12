@@ -1,26 +1,14 @@
 import { spawnSync } from "node:child_process";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Bench } from "tinybench";
-import * as acorn from "acorn";
-import * as babel from "@babel/parser";
 import * as oxc from "oxc-parser";
-import swc from "@swc/core";
-import { parseSync as swcNextParseSync, type Lang } from "@swc-next/parser";
-import type { ParseOptions as SwcParseOptions } from "@swc/types";
-import { parse as yukuParseSync, type SourceLang } from "yuku";
-
-const FILES: Record<string, { path: string; lang: SourceLang }> = {
-  typescript: { path: "files/typescript.js", lang: "js" },
-  checker: { path: "files/checker.ts", lang: "ts" },
-  lib_dom: { path: "files/lib.dom.d.ts", lang: "dts" },
-  react: { path: "files/react.js", lang: "js" },
-};
-
+import type { SourceLang } from "yuku";
+import { FILES, createParserTasks, parserNamesFor, parserLabel } from "./parsers.ts";
 const BENCH_TIME = Number(process.env.BENCH_TIME ?? 10000);
 const BENCH_WARMUP = Number(process.env.BENCH_WARMUP ?? 2000);
 const BENCH_RUNS = Number(process.env.BENCH_RUNS ?? 3);
-
 interface RunResult {
   name: string;
   mean: number;
@@ -41,71 +29,20 @@ interface FileResult {
   results: BenchResult[];
 }
 
-function isTsLang(lang: SourceLang): boolean {
-  return lang === "ts" || lang === "tsx" || lang === "dts";
-}
-
-function parserNamesFor(lang: SourceLang): string[] {
-  return isTsLang(lang)
-    ? ["Babel", "Oxc", "Oxc (raw transfer)", "SWC", "SWC Next", "Yuku"]
-    : ["Acorn", "Babel", "Oxc", "Oxc (raw transfer)", "SWC", "SWC Next", "Yuku"];
-}
-
-function createParserTasks(source: string, lang: SourceLang): Record<string, () => void> {
-  const isTs = isTsLang(lang);
-  const isJsx = lang === "tsx";
-  const isDts = lang === "dts";
-  const tasks: Record<string, () => void> = {};
-
-  if (!isTs) {
-    tasks.Acorn = () => {
-      const { body: _ } = acorn.parse(source, { ecmaVersion: "latest", sourceType: "module" });
-    };
+function spawnChild(args: string[], stderr: "pipe" | "inherit") {
+  const runtimeArgs = process.execArgv;
+  const proc = spawnSync(
+    process.execPath,
+    [...runtimeArgs, ...args],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", stderr],
+    },
+  );
+  if (proc.error) {
+    throw new Error(`Could not start child process: ${proc.error.message}`);
   }
-
-  const babelPlugins: babel.ParserPlugin[] = [];
-  if (isTs) babelPlugins.push(isDts ? ["typescript", { dts: true }] : "typescript");
-  if (isJsx) babelPlugins.push("jsx");
-  tasks.Babel = () => {
-    const { program: _ } = babel.parse(source, {
-      sourceType: "module",
-      plugins: babelPlugins,
-      errorRecovery: isTs,
-    });
-  };
-
-  const oxcFilename = isDts ? "bench.d.ts" : isJsx ? "bench.tsx" : isTs ? "bench.ts" : "bench.js";
-  tasks.Oxc = () => {
-    const { program: _ } = oxc.parseSync(oxcFilename, source);
-  };
-
-  const oxcRawOptions = { experimentalRawTransfer: true } as oxc.ParserOptions & {
-    experimentalRawTransfer: true;
-  };
-  tasks["Oxc (raw transfer)"] = () => {
-    const { program: _ } = oxc.parseSync(oxcFilename, source, oxcRawOptions);
-  };
-
-  // Declaration files are parsed as scripts: SWC's binding throws on the
-  // `...arguments` parameter names in lib.dom.d.ts when parsing as a module.
-  // `isModule` is accepted by the binding but missing from the ParseOptions type.
-  const swcSyntax: SwcParseOptions & { isModule?: boolean } = isTs
-    ? { syntax: "typescript", tsx: isJsx, isModule: !isDts }
-    : { syntax: "ecmascript" };
-  tasks.SWC = () => {
-    const { body: _ } = swc.parseSync(source, swcSyntax);
-  };
-
-  tasks["SWC Next"] = () => {
-    const { program: _ } = swcNextParseSync(source, { lang: lang as Lang });
-  };
-
-  const yukuOptions = lang === "js" ? undefined : { lang };
-  tasks.Yuku = () => {
-    const { program: _ } = yukuParseSync(source, yukuOptions);
-  };
-
-  return tasks;
+  return proc;
 }
 
 // Child mode: benchmark a single parser against a single file in a fresh
@@ -119,10 +56,24 @@ async function runTask(fileKey: string, parserName: string): Promise<void> {
   const source = await readFile(join(process.cwd(), file.path), "utf-8");
   const tasks = createParserTasks(source, file.lang);
   const fn = tasks[parserName];
-  if (!fn) throw new Error(`Parser ${parserName} does not support ${fileKey}`);
+  if (!fn) {
+    const label = parserLabel(parserName, parserNamesFor(file.lang));
+    throw new Error(`${label} does not support ${fileKey}`);
+  }
+
+  const parsed = fn();
+  if (parsed.diagnostics.length > 0) {
+    throw new Error(`Parse diagnostics: ${parsed.diagnostics.join("; ")}`);
+  }
 
   const bench = new Bench({ time: BENCH_TIME, warmupTime: BENCH_WARMUP });
-  bench.add(parserName, fn);
+  bench.add(parserName, () => {
+    const result = fn();
+    if (result.diagnostics.length > 0) {
+      throw new Error(`Parse diagnostics: ${result.diagnostics.join("; ")}`);
+    }
+    return result.program;
+  });
   await bench.run();
 
   const task = bench.tasks[0];
@@ -172,30 +123,46 @@ async function benchFile(
   console.log(`\nBenchmarking ${fileKey}...`);
 
   const results: BenchResult[] = [];
-  for (const name of parserNamesFor(file.lang)) {
-    const runs: RunResult[] = [];
+  const parserNames = parserNamesFor(file.lang);
+  const parserLabelFor = (name: string) => parserLabel(name, parserNames);
+
+  const runsByParser = new Map(parserNames.map((name) => [name, [] as RunResult[]]));
+  const check = spawnChild([new URL("./preflight.ts", import.meta.url).pathname, fileKey], "inherit");
+  if (check.status !== 0) throw new Error(`Preflight failed for ${fileKey}`);
+  {
     for (let run = 1; run <= BENCH_RUNS; run++) {
-      console.log(`  ${name} (run ${run}/${BENCH_RUNS})`);
-      const proc = spawnSync(
-        process.execPath,
-        [...process.execArgv, import.meta.filename, "--task", fileKey, name],
-        { encoding: "utf-8", stdio: ["ignore", "pipe", "inherit"] },
+      const orderedParsers = Array.from({ length: parserNames.length }, (_, i) =>
+        parserNames[(i + run - 1) % parserNames.length]!,
       );
-      if (proc.error) throw proc.error;
-      if (proc.status !== 0) {
-        throw new Error(`${name} run ${run} failed (${proc.signal ?? proc.status})`);
+      for (const name of orderedParsers) {
+        console.log(`  ${parserLabelFor(name)} (run ${run}/${BENCH_RUNS})`);
+        const proc = spawnChild(
+          [import.meta.filename, "--task", fileKey, name],
+          "inherit",
+        );
+        if (proc.status !== 0) {
+          const exit = proc.signal
+            ? `signal ${proc.signal}`
+            : `exit code ${proc.status ?? "unknown"}`;
+          throw new Error(`${parserLabelFor(name)} run ${run} failed with ${exit}`);
+        }
+        let out: { ok: boolean; result?: RunResult; error?: string };
+        try {
+          out = JSON.parse(proc.stdout ?? "") as { ok: boolean; result?: RunResult };
+        } catch {
+          throw new Error(`${parserLabelFor(name)} run ${run} returned invalid benchmark output`);
+        }
+        if (out.ok && out.result) runsByParser.get(name)!.push(out.result);
+        else throw new Error(`${parserLabelFor(name)} run ${run} failed: ${out.error ?? "incomplete result"}`);
       }
-      const out = JSON.parse(proc.stdout.toString()) as { ok: boolean; result?: RunResult };
-      if (out.ok && out.result) runs.push(out.result);
-      else throw new Error(`${name} run ${run} did not complete ${fileKey}`);
     }
-    if (runs.length > 0) results.push(aggregateRuns(name, runs));
   }
+  for (const name of parserNames) results.push(aggregateRuns(name, runsByParser.get(name)!));
 
   results.sort((a, b) => a.median - b.median);
   console.table(
     results.map((r) => ({
-      Parser: r.name,
+      Parser: parserLabelFor(r.name),
       "Median (ms)": r.median.toFixed(3),
       "±RME": `${r.rme.toFixed(2)}%`,
       Samples: r.samples,
@@ -207,16 +174,17 @@ async function benchFile(
 }
 
 async function main() {
-  if (!oxc.rawTransferSupported()) {
-    throw new Error("Oxc raw transfer requires a supported 64-bit little-endian Node.js platform. Run benchmarks with Node.js 22.18 or later.");
-  }
-
+  if (!oxc.rawTransferSupported()) throw new Error("Oxc raw transfer is unsupported on this runtime/platform");
   const args = process.argv.slice(2);
 
   if (args[0] === "--task") {
     const [, fileKey, parserName] = args;
     if (!fileKey || !parserName) throw new Error("Usage: bench.ts --task <file> <parser>");
-    await runTask(fileKey, parserName);
+    try {
+      await runTask(fileKey, parserName);
+    } catch (error) {
+      process.stdout.write(JSON.stringify({ ok: false, error: String(error) }));
+    }
     return;
   }
 
@@ -235,7 +203,9 @@ async function main() {
   console.log("\nBenchmark complete!");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
