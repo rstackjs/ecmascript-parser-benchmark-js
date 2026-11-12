@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Bench } from "tinybench";
@@ -46,8 +47,8 @@ function isTsLang(lang: SourceLang): boolean {
 
 function parserNamesFor(lang: SourceLang): string[] {
   return isTsLang(lang)
-    ? ["Babel", "Oxc", "SWC", "SWC Next", "Yuku"]
-    : ["Acorn", "Babel", "Oxc", "SWC", "SWC Next", "Yuku"];
+    ? ["Babel", "Oxc", "Oxc (raw transfer)", "SWC", "SWC Next", "Yuku"]
+    : ["Acorn", "Babel", "Oxc", "Oxc (raw transfer)", "SWC", "SWC Next", "Yuku"];
 }
 
 function createParserTasks(source: string, lang: SourceLang): Record<string, () => void> {
@@ -76,6 +77,13 @@ function createParserTasks(source: string, lang: SourceLang): Record<string, () 
   const oxcFilename = isDts ? "bench.d.ts" : isJsx ? "bench.tsx" : isTs ? "bench.ts" : "bench.js";
   tasks.Oxc = () => {
     const { program: _ } = oxc.parseSync(oxcFilename, source);
+  };
+
+  const oxcRawOptions = { experimentalRawTransfer: true } as oxc.ParserOptions & {
+    experimentalRawTransfer: true;
+  };
+  tasks["Oxc (raw transfer)"] = () => {
+    const { program: _ } = oxc.parseSync(oxcFilename, source, oxcRawOptions);
   };
 
   // Declaration files are parsed as scripts: SWC's binding throws on the
@@ -168,18 +176,18 @@ async function benchFile(
     const runs: RunResult[] = [];
     for (let run = 1; run <= BENCH_RUNS; run++) {
       console.log(`  ${name} (run ${run}/${BENCH_RUNS})`);
-      const proc = Bun.spawnSync({
-        cmd: [process.execPath, "scripts/bench.ts", "--task", fileKey, name],
-        stdout: "pipe",
-        stderr: "inherit",
-      });
-      if (proc.exitCode !== 0) {
-        console.error(`  ${name} run ${run} failed with exit code ${proc.exitCode}`);
-        continue;
+      const proc = spawnSync(
+        process.execPath,
+        [...process.execArgv, import.meta.filename, "--task", fileKey, name],
+        { encoding: "utf-8", stdio: ["ignore", "pipe", "inherit"] },
+      );
+      if (proc.error) throw proc.error;
+      if (proc.status !== 0) {
+        throw new Error(`${name} run ${run} failed (${proc.signal ?? proc.status})`);
       }
       const out = JSON.parse(proc.stdout.toString()) as { ok: boolean; result?: RunResult };
       if (out.ok && out.result) runs.push(out.result);
-      else console.error(`  ${name} run ${run} did not complete`);
+      else throw new Error(`${name} run ${run} did not complete ${fileKey}`);
     }
     if (runs.length > 0) results.push(aggregateRuns(name, runs));
   }
@@ -199,6 +207,10 @@ async function benchFile(
 }
 
 async function main() {
+  if (!oxc.rawTransferSupported()) {
+    throw new Error("Oxc raw transfer requires a supported 64-bit little-endian Node.js platform. Run benchmarks with Node.js 22.18 or later.");
+  }
+
   const args = process.argv.slice(2);
 
   if (args[0] === "--task") {

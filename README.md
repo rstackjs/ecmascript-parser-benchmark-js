@@ -105,14 +105,15 @@ A high-performance & spec-compliant JavaScript/TypeScript compiler written in Zi
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) - JavaScript runtime and package manager
+- [Node.js 22.18 or later](https://nodejs.org/) - Benchmark runtime
+- [Bun](https://bun.sh/) - Package manager and data generation
 
 ### Steps
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yuku-toolchain/ecmascript-parser-benchmark-js.git
+git clone https://github.com/rstackjs/ecmascript-parser-benchmark-js.git
 cd ecmascript-parser-benchmark-js
 ```
 
@@ -148,17 +149,10 @@ Native parsers (Oxc, SWC, SWC Next, Yuku) run through their respective bindings,
 
 `lib.dom.d.ts` is a global declaration script with no imports or exports. SWC parses it as a script rather than a module, because its npm binding otherwise rejects the file's `...arguments` parameter names under module strict mode.
 
-**Why is Oxc slower than Babel here?** By default, `oxc-parser` serializes the AST to a JSON string on the Rust side and runs `JSON.parse` on the JavaScript side when you access `result.program`. Oxc's Rust-side parsing is extremely fast. It is this serialization boundary that dominates the end-to-end time. (If you call `parseSync` and never touch the result, Oxc looks much faster, because `program` is a lazy getter that defers the `JSON.parse`. The benchmarks above measure the time to actually obtain the full AST, which is what any real consumer of a parser does.)
+### Oxc raw transfer
 
-**What about Oxc's `experimentalRawTransfer`?** Oxc also has a hidden experimental path that removes the JSON step entirely. It is not part of Oxc's documented parser options, but when the flag is passed, Rust parses directly into a huge `ArrayBuffer` shared with JavaScript, and generated JS code deserializes AST nodes straight out of that memory. It is genuinely clever engineering, and with it enabled Oxc's end-to-end numbers land much closer to Yuku's, since the two pipelines become architecturally the same (binary buffer in, ESTree objects out).
+The `Oxc` benchmark uses the default AST transfer path. `Oxc (raw transfer)` enables `experimentalRawTransfer: true`. Both access `result.program` on every iteration, including construction of the JavaScript AST in the measured time.
 
-It is not part of the results above for a simple reason. This benchmark measures each parser's default, documented, stable API, the code path every user gets from `npm install`. Raw transfer today is an undocumented flag that is none of those things, and it cannot run here at all.
+All parsers run under the same Node.js runtime. Raw transfer support is checked before benchmarking; unsupported platforms fail explicitly. Node.js 22.18 or later is required to execute the TypeScript benchmark scripts directly.
 
-- **It does not work on Bun**, which this benchmark runs on. `oxc-parser`'s own `rawTransferSupported()` check returns `false` on Bun, and on Node < 22 and Deno < 2, because the design requires allocating an `ArrayBuffer` larger than 4 GiB. Enabling the option in this harness would simply throw.
-- **It needs gigabytes of reserved memory per parse.** The trick that makes it fast is that the Rust arena is a fixed 2 GiB block aligned to a 4 GiB boundary, so 64-bit Rust pointers can be read from JavaScript as 32-bit buffer offsets. Achieving that alignment means reserving ~6 GiB of address space per buffer. Most of it stays virtual until touched, but every concurrent parse still needs its own dedicated 2 GiB arena, source and AST together must fit inside that block, and only 64-bit little-endian platforms are supported.
-
-If Oxc stabilizes raw transfer as its default path, we will happily benchmark it. That is the fair comparison we want.
-
-**Why is Yuku fast without any of that?** Yuku reaches the same zero-serialization end state, but by construction rather than by workaround. Its Zig parser does not build a pointer graph that later needs remapping. The AST *is already binary*, a flat table of fixed-size 44-byte node records addressed by index, with strings stored as offsets into the source. That layout is its own transfer format. It crosses the native boundary as one small buffer sized to the actual AST, and a generated decoder reads it in JavaScript through typed arrays, conceptually the same read side as Oxc's raw transfer minus the pointer-to-offset machinery that forces the giant fixed arena.
-
-Because there are no pointers to remap, there is no 2 GiB block, no 4 GiB alignment requirement, no multi-gigabyte reservation, and no runtime gate. The same code path runs on Node, Bun, and Deno, parses files in parallel without multiplying memory, and uses only the memory the file actually needs. Zig's comptime generates both the binary layout and the JavaScript decoder from one source of truth, so they can never drift apart. The numbers in the tables above are Yuku's default and only mode. There is no faster experimental path being held back and nothing extra to enable.
+Existing result files are historical measurements. Regenerate all results with `bun bench` before comparing the new raw transfer row with other parsers.
