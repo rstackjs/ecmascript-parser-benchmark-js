@@ -58,8 +58,8 @@ export function compareObjects(
     const hasActual = Object.hasOwn(actual, key);
     if (!hasExpected || !hasActual) {
       const present = hasExpected ? expected[key] : actual[key];
-      // An omitted list and an explicitly empty list carry the same content.
-      if (Array.isArray(present) && present.length === 0) continue;
+      // Missing optional values and empty lists carry no content.
+      if (present === null || present === undefined || (Array.isArray(present) && present.length === 0)) continue;
       return { path: `${path}.${key}`, expected: hasExpected ? expected[key] : "<absent>", actual: hasActual ? actual[key] : "<absent>" };
     }
     const difference = firstDifference(expected[key], actual[key], `${path}.${key}`);
