@@ -346,15 +346,7 @@ To keep results stable and fair, every parser × file combination runs in its ow
 
 Native parsers (Oxc, SWC, SWC Next, Yuku) run through their respective bindings, so measured time includes the binding overhead. Pure JS parsers (Acorn, Babel) run directly in the JavaScript runtime.
 
-\`lib.dom.d.ts\` is a global declaration script with no imports or exports. SWC parses it as a script rather than a module, because its npm binding otherwise rejects the file's \`...arguments\` parameter names under module strict mode.
-
-### Oxc raw transfer
-
-The \`Oxc\` benchmark uses the default AST transfer path. \`Oxc (raw transfer)\` enables \`experimentalRawTransfer: true\`. Both access \`result.program\` on every iteration, including construction of the JavaScript AST in the measured time.
-
-All parsers run under the same Node.js runtime. Raw transfer support is checked before benchmarking; unsupported platforms fail explicitly. Node.js 22.18 or later is required to execute the TypeScript benchmark scripts directly.
-
-The published results use Node.js for every parser.`;
+\`lib.dom.d.ts\` is a global declaration script with no imports or exports. SWC parses it as a script rather than a module, because its npm binding otherwise rejects the file's \`...arguments\` parameter names under module strict mode.`;
 }
 
 async function main() {
