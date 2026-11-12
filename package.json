@@ -13,7 +13,7 @@
     "update-parsers": "pnpm update --latest",
     "type-check": "tsgo --noEmit",
     "preflight": "node scripts/preflight.ts",
-    "test:normalize": "node --test scripts/normalize-parse-result.test.ts"
+    "test:normalize": "node --test scripts/compare-parser-behavior/normalize-parse-result.test.ts"
   },
   "dependencies": {
     "@babel/parser": "^8.1.0",

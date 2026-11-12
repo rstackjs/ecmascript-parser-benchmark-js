@@ -4,7 +4,7 @@ import test from "node:test";
 import { createParserTasks, parserNamesFor, type ParseOutput } from "./parsers.ts";
 import { normalizeAst, normalizeParseFailure, normalizeParseResult } from "./normalize-parse-result.ts";
 import { normalizeBabelParseResult } from "./normalize-babel-parse-result.ts";
-import { assertMatchingParseErrors, firstDifference } from "./preflight.ts";
+import { assertMatchingParseErrors, firstDifference } from "./compare-parse-result.ts";
 import type { SourceLang } from "yuku";
 
 const fixtures = new URL("./fixtures/normalize/", import.meta.url);
