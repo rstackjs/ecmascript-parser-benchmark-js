@@ -3,17 +3,16 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "bench": "pnpm run generate:ast-cache && node scripts/bench.ts && pnpm run readme",
+    "bench": "node scripts/bench.ts && pnpm run readme",
     "load-files": "node scripts/load-files.ts",
-    "bench:typescript": "node scripts/bench.ts --generate-ast-cache typescript && node scripts/bench.ts typescript",
-    "bench:checker": "node scripts/bench.ts --generate-ast-cache checker && node scripts/bench.ts checker",
-    "bench:lib_dom": "node scripts/bench.ts --generate-ast-cache lib_dom && node scripts/bench.ts lib_dom",
-    "bench:react": "node scripts/bench.ts --generate-ast-cache react && node scripts/bench.ts react",
+    "bench:typescript": "node scripts/bench.ts typescript",
+    "bench:checker": "node scripts/bench.ts checker",
+    "bench:lib_dom": "node scripts/bench.ts lib_dom",
+    "bench:react": "node scripts/bench.ts react",
     "readme": "node scripts/generate-readme.ts",
     "update-parsers": "pnpm update --latest",
     "type-check": "tsgo --noEmit",
-    "generate:ast-cache": "node scripts/bench.ts --generate-ast-cache",
-    "preflight": "pnpm run generate:ast-cache && node scripts/bench.ts --preflight-all"
+    "preflight": "node scripts/preflight.ts"
   },
   "dependencies": {
     "@babel/parser": "^8.1.0",

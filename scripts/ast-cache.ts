@@ -41,7 +41,7 @@ export async function loadOxcBaseline<Lang, Summary>(
     contents = await readFile(join(process.cwd(), AST_CACHE_PATH), "utf-8");
   } catch (error) {
     if (isRecord(error) && error.code === "ENOENT") {
-      throw new Error("Oxc AST cache is missing. Run `pnpm run generate:ast-cache` first.");
+      throw new Error("Oxc AST cache is missing. Run `pnpm preflight` first.");
     }
     throw error;
   }
@@ -53,7 +53,7 @@ export async function loadOxcBaseline<Lang, Summary>(
     parsed.generatedBy !== "Oxc" ||
     !isRecord(parsed.files)
   ) {
-    throw new Error("Invalid Oxc AST cache. Run `pnpm run generate:ast-cache` to rebuild it.");
+    throw new Error("Invalid Oxc AST cache. Run `pnpm preflight` to rebuild it.");
   }
   const entry = parsed.files[fileKey];
   if (
@@ -63,7 +63,7 @@ export async function loadOxcBaseline<Lang, Summary>(
     !isSummary(entry.summary)
   ) {
     throw new Error(
-      `Oxc AST cache is stale or missing ${fileKey}. Run \`pnpm run generate:ast-cache\` to rebuild it.`,
+      `Oxc AST cache is stale or missing ${fileKey}. Run \`pnpm preflight\` to rebuild it.`,
     );
   }
   return entry.summary;
