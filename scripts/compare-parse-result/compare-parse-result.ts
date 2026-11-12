@@ -1,12 +1,12 @@
-import type { NormalizedParseResult } from "./normalize-parse-result.ts";
+import type { NormalizedParseResult } from "./parse-result.ts";
 
-export interface Difference {
+interface Difference {
   path: string;
   expected: unknown;
   actual: unknown;
 }
 
-export function firstDifference(expected: unknown, actual: unknown, path = "$"): Difference | undefined {
+function firstDifference(expected: unknown, actual: unknown, path = "$"): Difference | undefined {
   if (Object.is(expected, actual)) return;
   if (Array.isArray(expected) && Array.isArray(actual)) {
     if (expected.length !== actual.length) return { path: `${path}.length`, expected: expected.length, actual: actual.length };
@@ -24,7 +24,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export function compareObjects(
+function compareObjects(
   expected: Record<string, unknown>,
   actual: Record<string, unknown>,
   path = "$",

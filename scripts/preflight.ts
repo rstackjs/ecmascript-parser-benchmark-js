@@ -1,9 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { FILES, createParserTasks, parserNamesFor } from "./parsers.ts";
+import { FILES, createParserTasks, parserNamesFor, type ParseOutput } from "./parsers.ts";
 import { normalizeParseResult, compareParseResult, type NormalizedParseResult } from "./compare-parse-result/index.ts";
 import type { SourceLang } from "yuku";
-import { normalizeParseFailure } from "./compare-parse-result/parse-result.ts";
 
 function fileConfig(input: string): { path: string; lang: SourceLang } {
   if (FILES[input]) return FILES[input];
@@ -16,11 +15,11 @@ export async function preflightFile(input: string): Promise<void> {
   const source = await readFile(file.path, "utf-8");
   const tasks = createParserTasks(source, file.lang);
   const results: (NormalizedParseResult & { name: string })[] = parserNamesFor(file.lang).map(name => {
-    let output;
+    let output: ParseOutput;
     try {
       output = tasks[name]!();
     } catch (error) {
-      return { name, ...normalizeParseFailure(error) };
+      output = { program: undefined, comments: null, diagnostics: [error instanceof Error ? error.message : String(error)] };
     }
     // A normalization bug is not a parser diagnostic.
     return { name, ...normalizeParseResult(output, name) };

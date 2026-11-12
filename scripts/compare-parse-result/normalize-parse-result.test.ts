@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 import { createParserTasks, parserNamesFor, type ParseOutput } from "../parsers.ts";
-import { normalizeAst, normalizeParseFailure, normalizeParseResult } from "./normalize-parse-result.ts";
-import { normalizeBabelParseResult } from "./normalize-babel-parse-result.ts";
-import { compareParseResult, firstDifference } from "./compare-parse-result.ts";
+import { normalizeParseResult, compareParseResult } from "./index.ts";
 import type { SourceLang } from "yuku";
 
 const fixtures = new URL("./fixtures/normalize/", import.meta.url);
@@ -26,7 +24,7 @@ for (const file of (await readdir(fixtures)).sort()) {
       // Keep normalization outside this catch: adapter bugs must fail the test.
       let parsed: ParseOutput;
       try { parsed = tasks[name]!(); }
-      catch (error) { return { name, ...normalizeParseFailure(error) }; }
+      catch (error) { parsed = output(undefined, [error instanceof Error ? error.message : String(error)]); }
       return { name, ...normalizeParseResult(parsed, name) };
     });
     if (file.startsWith("invalid-")) {
@@ -45,15 +43,16 @@ for (const file of (await readdir(fixtures)).sort()) {
     for (const result of results) assert.equal(result.diagnostics.length, 0, result.name);
     const reference = results.find(result => result.name === "Oxc")!;
     for (const result of results.filter(result => result.name !== "Oxc")) {
-      const difference = firstDifference(reference.ast, result.ast);
       const knownDifference = VALUE_DIFFERENCES[file];
       if (knownDifference?.parsers.includes(result.name)) {
-        assert.ok(difference, `${result.name} must retain the value difference`);
-        assert.match(difference.path, /\.value$/);
-        assert.equal(difference.expected, knownDifference.expected);
-        assert.equal(difference.actual, knownDifference.actual);
+        assert.throws(() => compareParseResult(reference, result), (error: unknown) => {
+          assert.ok(error instanceof Error);
+          assert.match(error.message, /\.value: expected/);
+          assert.ok(error.message.includes(`expected ${JSON.stringify(knownDifference.expected)}, actual ${JSON.stringify(knownDifference.actual)}`));
+          return true;
+        }, `${result.name} must retain the value difference`);
       } else {
-        assert.equal(difference, undefined, `${result.name}: ${difference?.path}`);
+        assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
       }
     }
   });
@@ -82,20 +81,19 @@ test("normalization preserves values, child order, optionality, and unknown fiel
       const b = normalizeParseResult(rightTasks[parser]!(), parser);
       assert.equal(a.diagnostics.length, 0);
       assert.equal(b.diagnostics.length, 0);
-      assert.ok(firstDifference(a.ast, b.ast), `${parser} lost difference between ${left} and ${right}`);
+      assert.throws(() => compareParseResult(a, b), `${parser} lost difference between ${left} and ${right}`);
     }
   }
-  assert.ok(firstDifference(normalizeAst({ type: "Literal", value: null }), normalizeAst({ type: "Literal" })));
-  assert.ok(firstDifference(normalizeAst({ type: "NewNode", unknown: "a" }), normalizeAst({ type: "NewNode", unknown: "b" })));
-  assert.equal((normalizeAst({ type: "Payload", value: { raw: "keep", start: 1 } }) as { value: { raw: string } }).value.raw, "keep");
+  assert.throws(() => compareParseResult(normalizeParseResult(output({ type: "Literal", value: null })), normalizeParseResult(output({ type: "Literal" }))));
+  assert.throws(() => compareParseResult(normalizeParseResult(output({ type: "NewNode", unknown: "a" })), normalizeParseResult(output({ type: "NewNode", unknown: "b" }))));
+  assert.equal((normalizeParseResult(output({ type: "Payload", value: { raw: "keep", start: 1 } })).ast as { value: { raw: string } }).value.raw, "keep");
 });
 
-test("Babel normalizes a complete result through its own entry point", () => {
+test("the public normalizer dispatches Babel ASTs and diagnostics to its adapter", () => {
   const parsed = output({ type: "StringLiteral", value: "x", start: 0 }, ["\u001b[31mUnexpected\n token\u001b[0m"]);
-  const result = normalizeBabelParseResult(parsed);
+  const result = normalizeParseResult(parsed, "Babel");
   assert.deepEqual(result.diagnostics, ["Unexpected token"]);
   assert.equal((result.ast as { type: string }).type, "StringLiteral");
-  assert.deepEqual(result, normalizeParseResult(parsed, "Babel"));
   assert.deepEqual(parsed.diagnostics, ["\u001b[31mUnexpected\n token\u001b[0m"]);
 });
 
@@ -105,7 +103,7 @@ test("normalization is deterministic, idempotent, and leaves parser outputs inta
   const first = normalizeParseResult(original, "SWC");
   assert.equal(JSON.stringify(original), before);
   assert.deepEqual(first, normalizeParseResult(original, "SWC"));
-  assert.deepEqual(first.ast, normalizeAst(first.ast));
+  assert.deepEqual(first, normalizeParseResult(output(first.ast, first.diagnostics)));
 });
 
 test("public API compares ASTs and diagnostic content", () => {
@@ -115,4 +113,15 @@ test("public API compares ASTs and diagnostic content", () => {
   assert.throws(() => compareParseResult(a, b), /\$\.ast\.name/);
   assert.throws(() => compareParseResult(a, { ...a, diagnostics: ["error"] }), /\$\.diagnostics\.length/);
   assert.throws(() => compareParseResult({ ...a, diagnostics: ["first"] }, { ...a, diagnostics: ["second"] }), /\$\.diagnostics\[0\]/);
+});
+
+test("parse failures use the same normalizer without adding a duplicate error", () => {
+  const parsed = output(undefined, ["\u001b[31mUnexpected\n token\u001b[0m"]);
+  for (const parser of ["Oxc", "SWC", "Babel"]) {
+    const result = normalizeParseResult(parsed, parser);
+    assert.deepEqual(result, { ast: undefined, diagnostics: ["Unexpected token"] });
+    assert.doesNotThrow(() => compareParseResult(result, normalizeParseResult(output(undefined, ["Unexpected token"]), parser)));
+    assert.deepEqual(normalizeParseResult(output(undefined), parser).diagnostics, ["Returned no AST"]);
+  }
+  assert.deepEqual(parsed.diagnostics, ["\u001b[31mUnexpected\n token\u001b[0m"]);
 });
