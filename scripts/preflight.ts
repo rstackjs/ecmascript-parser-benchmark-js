@@ -87,21 +87,45 @@ function fileConfig(input: string): { path: string; lang: SourceLang } {
   return { path: input, lang };
 }
 
+export interface ParseCheck {
+  name: string;
+  program: unknown;
+  errors: string[];
+}
+
+export function assertMatchingParseErrors(results: ParseCheck[], file: string): void {
+  const reference = results.find(result => result.name === "Oxc");
+  if (!reference) throw new Error(`${file}: missing Oxc result`);
+  for (const result of results) {
+    if (result.errors.length !== reference.errors.length) {
+      throw new Error(`${file}: ${result.name} parse errors differ from Oxc: expected ${reference.errors.length}, actual ${result.errors.length}; Oxc: ${reference.errors.join("; ") || "none"}; ${result.name}: ${result.errors.join("; ") || "none"}`);
+    }
+  }
+  // Equal counts do not prove equivalent diagnostics. Invalid inputs must never
+  // enter timing, even when all parsers reject them.
+  if (reference.errors.length) {
+    throw new Error(`${file}: all parsers report parse errors; timing blocked. ${results.map(result => `${result.name}: ${result.errors.join("; ")}`).join(" | ")}`);
+  }
+}
+
 export async function preflightFile(input: string): Promise<void> {
   const file = fileConfig(input);
   const source = await readFile(file.path, "utf-8");
   const tasks = createParserTasks(source, file.lang);
-  const parse = (name: string) => {
-    let output;
-    try { output = tasks[name]!(); }
-    catch (error) { throw new Error(`${file.path}: ${name} parse failed`, { cause: error }); }
-    if (output.diagnostics.length) throw new Error(`${file.path}: ${name} diagnostics: ${output.diagnostics.join("; ")}`);
-    if (output.program === null || typeof output.program !== "object") throw new Error(`${file.path}: ${name} returned no AST`);
-    return output.program;
-  };
-  const reference = parse("Oxc");
-  for (const name of parserNamesFor(file.lang)) {
-    if (name !== "Oxc") assertMatchingAst(reference, parse(name), file.path, name);
+  const results: ParseCheck[] = parserNamesFor(file.lang).map(name => {
+    try {
+      const output = tasks[name]!();
+      const errors = [...output.diagnostics];
+      if (output.program === null || typeof output.program !== "object") errors.push("Returned no AST");
+      return { name, program: output.program, errors };
+    } catch (error) {
+      return { name, program: undefined, errors: [error instanceof Error ? error.message : String(error)] };
+    }
+  });
+  assertMatchingParseErrors(results, file.path);
+  const reference = results.find(result => result.name === "Oxc")!;
+  for (const result of results) {
+    if (result.name !== "Oxc") assertMatchingAst(reference.program, result.program, file.path, result.name);
   }
 }
 
