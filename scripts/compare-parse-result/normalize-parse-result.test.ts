@@ -6,7 +6,7 @@ import { normalizeParseResult, compareParseResult } from "./index.ts";
 import type { SourceLang } from "yuku";
 
 const fixtures = new URL("./fixtures/normalize/", import.meta.url);
-const output = (program: unknown, diagnostics: string[] = []): ParseOutput => ({ program, diagnostics, comments: null });
+const output = (program: unknown, diagnostics: string[] = [], comments: ParseOutput["comments"] = null): ParseOutput => ({ program, diagnostics, comments });
 
 for (const file of (await readdir(fixtures)).sort()) {
   test(`parser outputs: ${file}`, async () => {
@@ -38,7 +38,10 @@ for (const file of (await readdir(fixtures)).sort()) {
     for (const result of results) assert.equal(result.diagnostics.length, 0, result.name);
     const reference = results.find(result => result.name === "Oxc")!;
     for (const result of results.filter(result => result.name !== "Oxc")) {
-      assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
+      if (result.name === "SWC") {
+        assert.equal(result.comments, null, "SWC does not expose comments");
+        assert.doesNotThrow(() => compareParseResult({ ...reference, comments: null }, result), result.name);
+      } else assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
     }
   });
 }
@@ -90,7 +93,7 @@ test("normalization is deterministic, idempotent, and leaves parser outputs inta
     const first = normalizeParseResult(original, parser);
     assert.equal(JSON.stringify(original), before);
     assert.deepEqual(first, normalizeParseResult(original, parser));
-    assert.deepEqual(first, normalizeParseResult(output(first.ast, first.diagnostics)));
+    assert.deepEqual(first, normalizeParseResult(output(first.ast, first.diagnostics, first.comments)));
   }
 });
 
@@ -129,9 +132,50 @@ test("parse failures use the same normalizer without adding a duplicate error", 
   const parsed = output(undefined, ["\u001b[31mUnexpected\n token\u001b[0m"]);
   for (const parser of ["Oxc", "SWC", "Babel"]) {
     const result = normalizeParseResult(parsed, parser);
-    assert.deepEqual(result, { ast: undefined, diagnostics: ["Unexpected token"] });
+    assert.deepEqual(result, { ast: undefined, comments: null, diagnostics: ["Unexpected token"] });
     assert.doesNotThrow(() => compareParseResult(result, normalizeParseResult(output(undefined, ["Unexpected token"]), parser)));
     assert.deepEqual(normalizeParseResult(output(undefined), parser).diagnostics, ["Returned no AST"]);
   }
   assert.deepEqual(parsed.diagnostics, ["\u001b[31mUnexpected\n token\u001b[0m"]);
+});
+
+test("comments normalize type and metadata while retaining whitespace, content, and order", () => {
+  const ast = { type: "Program", body: [] };
+  const input = output(ast, [], [
+    { type: "CommentLine", value: "  one  ", start: 0, end: 11 },
+    { type: "CommentBlock", value: "* doc\r\n second ", start: 12, end: 30 },
+    { type: "Line", value: "same", start: 31, end: 37 },
+    { type: "Line", value: "same", start: 38, end: 44 },
+  ]);
+  const before = JSON.stringify(input);
+  const result = normalizeParseResult(input, "Babel");
+  assert.deepEqual(result.comments, [
+    { type: "Line", value: "  one  " },
+    { type: "Block", value: "* doc\r\n second " },
+    { type: "Line", value: "same" },
+    { type: "Line", value: "same" },
+  ]);
+  assert.equal(JSON.stringify(input), before);
+  assert.deepEqual(result, normalizeParseResult(output(result.ast, result.diagnostics, result.comments)));
+  for (const comments of [
+    result.comments!.slice(1),
+    [...result.comments!].reverse(),
+    [{ type: "Block", value: "  one  " }, ...result.comments!.slice(1)],
+    [{ type: "Line", value: "one" }, ...result.comments!.slice(1)],
+    null,
+  ]) assert.throws(() => compareParseResult(result, normalizeParseResult(output(ast, [], comments))), /\$\.comments/);
+  assert.throws(() => compareParseResult(normalizeParseResult(output(ast)), normalizeParseResult(output(ast, [], []))), /\$\.comments/);
+});
+
+test("all exposed parser comments match an independently specified list", () => {
+  const tasks = createParserTasks('#!/usr/bin/env node\n//  one  \r\n/* two\r\n three */ const x=1; // last\n/** doc */', "js");
+  for (const parser of parserNamesFor("js")) {
+    const result = normalizeParseResult(tasks[parser]!(), parser);
+    assert.deepEqual(result.comments, parser === "SWC" ? null : [
+      { type: "Line", value: "  one  " },
+      { type: "Block", value: " two\r\n three " },
+      { type: "Line", value: " last" },
+      { type: "Block", value: "* doc " },
+    ], parser);
+  }
 });

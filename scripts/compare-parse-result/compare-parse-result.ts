@@ -58,7 +58,8 @@ export function compareParseResult(
 ): void {
   // Diagnostics are part of the result, not only their count.
   const difference = firstDifference(expected.diagnostics, actual.diagnostics, "$.diagnostics")
-    ?? firstDifference(expected.ast, actual.ast, "$.ast");
+    ?? firstDifference(expected.ast, actual.ast, "$.ast")
+    ?? firstDifference(expected.comments, actual.comments, "$.comments");
   if (difference) {
     throw new Error(`Parse results differ at ${difference.path}: expected ${describe(difference.expected)}, actual ${describe(difference.actual)}`);
   }

@@ -27,8 +27,12 @@ export async function preflightFile(input: string): Promise<void> {
   const reference = results.find(result => result.name === "Oxc")!;
   for (const result of results) {
     if (result.name === "Oxc") continue;
-    try { compareParseResult(reference, result); }
+    // @swc/core parseSync does not expose its collected comments. Keep the
+    // limitation explicit; never substitute another parser's comment list.
+    const isSwcCommentsUnavailable = result.name === "SWC" && result.comments === null;
+    try { compareParseResult(isSwcCommentsUnavailable ? { ...reference, comments: null } : reference, result); }
     catch (error) { throw new Error(`${file.path}: ${result.name} versus Oxc: ${error instanceof Error ? error.message : String(error)}`); }
+    if (isSwcCommentsUnavailable) console.warn(`${file.path}: SWC comments unavailable; checked AST and diagnostics only.`);
   }
   if (reference.diagnostics.length) throw new Error(`${file.path}: parse errors present; timing blocked: ${reference.diagnostics.join("; ")}`);
 }

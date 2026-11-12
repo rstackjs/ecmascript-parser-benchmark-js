@@ -8,5 +8,5 @@ import { resultWithAst, type NormalizedParseResult } from "./parse-result.ts";
 export function normalizeParseResult(output: ParseOutput, parser?: string): NormalizedParseResult {
   if (parser === "Babel") return normalizeBabelParseResult(output);
   if (parser === "SWC") return normalizeSwcParseResult(output);
-  return resultWithAst(normalizeAst(output.program), output.diagnostics);
+  return resultWithAst(normalizeAst(output.program), output);
 }

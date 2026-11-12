@@ -91,5 +91,5 @@ function normalizeBabelAst(ast: unknown): unknown {
 
 /** Babel's structural and diagnostic adapters have their own entry point. */
 export function normalizeBabelParseResult(output: ParseOutput): NormalizedParseResult {
-  return resultWithAst(normalizeBabelAst(output.program), output.diagnostics);
+  return resultWithAst(normalizeBabelAst(output.program), output);
 }
