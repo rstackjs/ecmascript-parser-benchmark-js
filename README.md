@@ -12,6 +12,7 @@ Benchmarks for ECMAScript parsers available as npm packages, including pure Java
 | CPU | Apple M5 Max |
 | Cores | 18 |
 | Memory | 64 GB |
+| Runtime | Node.js v24.20.0 |
 
 ## Parsers
 
@@ -26,6 +27,10 @@ A JavaScript compiler and parser used by the Babel toolchain.
 ### [Oxc](https://github.com/oxc-project/oxc)
 
 A high-performance JavaScript and TypeScript parser written in Rust.
+
+### [Oxc (raw transfer)](https://github.com/oxc-project/oxc)
+
+The native Oxc parser with experimental raw AST transfer enabled.
 
 ### [SWC](https://github.com/swc-project/swc)
 
@@ -49,12 +54,13 @@ A high-performance & spec-compliant JavaScript/TypeScript compiler written in Zi
 
 | Parser | Median | RME | Mean | Min | Max | Ops/sec | Relative |
 |--------|--------|-----|------|-----|-----|---------|----------|
-| **SWC Next** | **30.15 ms** | **±0.94%** | **30.69 ms** | **26.65 ms** | **100.88 ms** | **33.17 ops/s** | **baseline** |
-| Yuku | 39.23 ms | ±1.50% | 40.79 ms | 32.86 ms | 120.26 ms | 25.49 ops/s | 1.30× slower |
-| Acorn | 116.99 ms | ±1.43% | 118.29 ms | 98.46 ms | 149.35 ms | 8.55 ops/s | 3.88× slower |
-| Babel | 140.80 ms | ±3.82% | 145.99 ms | 111.52 ms | 264.29 ms | 7.10 ops/s | 4.67× slower |
-| Oxc | 185.60 ms | ±1.64% | 188.74 ms | 172.58 ms | 267.85 ms | 5.39 ops/s | 6.16× slower |
-| SWC | 356.86 ms | ±1.08% | 358.08 ms | 330.59 ms | 514.03 ms | 2.80 ops/s | 11.84× slower |
+| **SWC Next** | **37.49 ms** | **±3.03%** | **43.02 ms** | **30.97 ms** | **74.15 ms** | **26.67 ops/s** | **baseline** |
+| Yuku | 42.46 ms | ±2.23% | 46.37 ms | 38.33 ms | 63.03 ms | 23.55 ops/s | 1.13× slower |
+| Oxc (raw transfer) | 43.76 ms | ±2.09% | 44.49 ms | 32.39 ms | 81.18 ms | 22.85 ops/s | 1.17× slower |
+| Acorn | 155.93 ms | ±1.59% | 158.26 ms | 146.17 ms | 212.37 ms | 6.41 ops/s | 4.16× slower |
+| Babel | 165.19 ms | ±2.91% | 170.67 ms | 151.02 ms | 269.13 ms | 6.05 ops/s | 4.41× slower |
+| Oxc | 253.26 ms | ±2.13% | 263.28 ms | 240.21 ms | 342.63 ms | 3.95 ops/s | 6.75× slower |
+| SWC | 480.46 ms | ±1.53% | 490.91 ms | 459.44 ms | 691.92 ms | 2.08 ops/s | 12.81× slower |
 
 ### [checker.ts](https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/checker.ts)
 
@@ -64,11 +70,12 @@ A high-performance & spec-compliant JavaScript/TypeScript compiler written in Zi
 
 | Parser | Median | RME | Mean | Min | Max | Ops/sec | Relative |
 |--------|--------|-----|------|-----|-----|---------|----------|
-| **SWC Next** | **11.10 ms** | **±0.69%** | **11.32 ms** | **9.60 ms** | **16.37 ms** | **90.06 ops/s** | **baseline** |
-| Yuku | 12.41 ms | ±0.91% | 12.83 ms | 10.69 ms | 20.39 ms | 80.59 ops/s | 1.12× slower |
-| Oxc | 53.53 ms | ±0.69% | 54.01 ms | 49.09 ms | 69.43 ms | 18.68 ops/s | 4.82× slower |
-| Babel | 57.46 ms | ±1.57% | 57.61 ms | 45.75 ms | 92.49 ms | 17.40 ops/s | 5.17× slower |
-| SWC | 109.73 ms | ±0.59% | 110.25 ms | 101.05 ms | 133.17 ms | 9.11 ops/s | 9.88× slower |
+| **Yuku** | **13.52 ms** | **±1.48%** | **14.91 ms** | **11.52 ms** | **37.04 ms** | **73.98 ops/s** | **baseline** |
+| SWC Next | 13.57 ms | ±2.82% | 16.36 ms | 12.23 ms | 45.71 ms | 73.71 ops/s | 1.00× slower |
+| Oxc (raw transfer) | 17.15 ms | ±3.41% | 20.86 ms | 15.12 ms | 96.76 ms | 58.30 ops/s | 1.27× slower |
+| Babel | 55.09 ms | ±1.31% | 56.18 ms | 50.46 ms | 82.75 ms | 18.15 ops/s | 4.08× slower |
+| Oxc | 88.44 ms | ±1.55% | 86.83 ms | 76.24 ms | 142.86 ms | 11.31 ops/s | 6.54× slower |
+| SWC | 138.07 ms | ±0.59% | 139.72 ms | 134.19 ms | 162.59 ms | 7.24 ops/s | 10.21× slower |
 | Acorn | Failed to parse | - | - | - | - | - | - |
 
 ### [lib.dom.d.ts](https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/lib.dom.d.ts)
@@ -79,11 +86,12 @@ A high-performance & spec-compliant JavaScript/TypeScript compiler written in Zi
 
 | Parser | Median | RME | Mean | Min | Max | Ops/sec | Relative |
 |--------|--------|-----|------|-----|-----|---------|----------|
-| **Yuku** | **4.38 ms** | **±0.82%** | **4.85 ms** | **3.90 ms** | **9.26 ms** | **228.22 ops/s** | **baseline** |
-| SWC Next | 4.48 ms | ±0.72% | 4.58 ms | 3.42 ms | 14.73 ms | 223.17 ops/s | 1.02× slower |
-| Oxc | 20.63 ms | ±0.57% | 20.92 ms | 18.38 ms | 28.96 ms | 48.46 ops/s | 4.71× slower |
-| Babel | 30.39 ms | ±0.80% | 30.46 ms | 24.05 ms | 39.03 ms | 32.90 ops/s | 6.94× slower |
-| SWC | 44.12 ms | ±0.49% | 44.12 ms | 40.44 ms | 78.63 ms | 22.66 ops/s | 10.07× slower |
+| **Yuku** | **4.96 ms** | **±0.97%** | **5.46 ms** | **4.61 ms** | **14.86 ms** | **201.68 ops/s** | **baseline** |
+| SWC Next | 5.63 ms | ±0.84% | 5.99 ms | 5.06 ms | 20.70 ms | 177.62 ops/s | 1.14× slower |
+| Oxc (raw transfer) | 5.80 ms | ±2.41% | 7.71 ms | 5.31 ms | 37.84 ms | 172.40 ops/s | 1.17× slower |
+| Babel | 22.36 ms | ±0.83% | 22.76 ms | 20.22 ms | 40.43 ms | 44.73 ops/s | 4.51× slower |
+| Oxc | 30.87 ms | ±1.68% | 33.24 ms | 29.60 ms | 57.64 ms | 32.39 ops/s | 6.23× slower |
+| SWC | 57.37 ms | ±0.55% | 57.78 ms | 55.16 ms | 87.30 ms | 17.43 ops/s | 11.57× slower |
 | Acorn | Failed to parse | - | - | - | - | - | - |
 
 ### [react.js](https://raw.githubusercontent.com/yuku-toolchain/parser-benchmark-files/refs/heads/main/react.js)
@@ -94,12 +102,13 @@ A high-performance & spec-compliant JavaScript/TypeScript compiler written in Zi
 
 | Parser | Median | RME | Mean | Min | Max | Ops/sec | Relative |
 |--------|--------|-----|------|-----|-----|---------|----------|
-| **SWC Next** | **0.17 ms** | **±0.83%** | **0.23 ms** | **0.15 ms** | **4.53 ms** | **5968.69 ops/s** | **baseline** |
-| Yuku | 0.21 ms | ±0.69% | 0.26 ms | 0.19 ms | 16.04 ms | 4811.56 ops/s | 1.24× slower |
-| Acorn | 0.68 ms | ±0.47% | 0.75 ms | 0.58 ms | 10.69 ms | 1474.93 ops/s | 4.05× slower |
-| Babel | 0.91 ms | ±0.86% | 1.10 ms | 0.69 ms | 6.55 ms | 1098.60 ops/s | 5.43× slower |
-| Oxc | 0.93 ms | ±0.39% | 1.00 ms | 0.86 ms | 5.17 ms | 1071.76 ops/s | 5.57× slower |
-| SWC | 1.99 ms | ±0.36% | 2.07 ms | 1.79 ms | 8.53 ms | 502.47 ops/s | 11.88× slower |
+| **SWC Next** | **0.19 ms** | **±0.65%** | **0.21 ms** | **0.15 ms** | **11.76 ms** | **5398.11 ops/s** | **baseline** |
+| Yuku | 0.19 ms | ±0.14% | 0.20 ms | 0.18 ms | 3.27 ms | 5180.22 ops/s | 1.04× slower |
+| Oxc (raw transfer) | 0.20 ms | ±4.98% | 0.37 ms | 0.17 ms | 26.01 ms | 5109.63 ops/s | 1.06× slower |
+| Babel | 0.71 ms | ±0.22% | 0.74 ms | 0.67 ms | 3.23 ms | 1406.88 ops/s | 3.84× slower |
+| Acorn | 0.95 ms | ±0.19% | 0.97 ms | 0.90 ms | 16.74 ms | 1049.00 ops/s | 5.15× slower |
+| Oxc | 1.44 ms | ±1.75% | 1.60 ms | 1.35 ms | 18.22 ms | 693.84 ops/s | 7.78× slower |
+| SWC | 2.91 ms | ±0.30% | 2.98 ms | 2.70 ms | 6.78 ms | 343.78 ops/s | 15.70× slower |
 
 ## Run Benchmarks
 
@@ -155,4 +164,4 @@ The `Oxc` benchmark uses the default AST transfer path. `Oxc (raw transfer)` ena
 
 All parsers run under the same Node.js runtime. Raw transfer support is checked before benchmarking; unsupported platforms fail explicitly. Node.js 22.18 or later is required to execute the TypeScript benchmark scripts directly.
 
-Existing result files are historical measurements. Regenerate all results with `bun bench` before comparing the new raw transfer row with other parsers.
+The published results use Node.js for every parser. Regenerate all results together with `bun bench` when updating the runtime or parser versions.

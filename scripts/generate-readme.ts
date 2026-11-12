@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { arch, cpus, platform, release, totalmem } from "node:os";
 import { join } from "node:path";
@@ -292,7 +293,8 @@ function getSystemInfo(): string {
 | OS | ${osName} ${osRelease} (${osArch}) |
 | CPU | ${cpuModel} |
 | Cores | ${cpuCores} |
-| Memory | ${totalMemoryGB} GB |`;
+| Memory | ${totalMemoryGB} GB |
+| Runtime | Node.js ${execFileSync("node", ["--version"], { encoding: "utf-8" }).trim()} |`;
 }
 
 function generateRunSection(): string {
@@ -352,7 +354,7 @@ The \`Oxc\` benchmark uses the default AST transfer path. \`Oxc (raw transfer)\`
 
 All parsers run under the same Node.js runtime. Raw transfer support is checked before benchmarking; unsupported platforms fail explicitly. Node.js 22.18 or later is required to execute the TypeScript benchmark scripts directly.
 
-Existing result files are historical measurements. Regenerate all results with \`bun bench\` before comparing the new raw transfer row with other parsers.`;
+The published results use Node.js for every parser. Regenerate all results together with \`bun bench\` when updating the runtime or parser versions.`;
 }
 
 async function main() {

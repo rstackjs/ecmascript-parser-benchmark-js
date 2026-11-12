@@ -1,29 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="172" viewBox="0 0 640 172">
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="202" viewBox="0 0 640 202">
   <style>
     text { font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; fill: #848d97; dominant-baseline: central; font-variant-numeric: tabular-nums }
     .ratio { font-size: 12px; fill: #fff }
   </style>
-  <text x="64" y="11" text-anchor="end">SWC Next</text>
-  <rect x="74" y="0" width="41" height="22" rx="4" fill="#2DBD85"/>
-  <text x="123" y="11">30.15 ms</text>
-  <text x="64" y="41" text-anchor="end">Yuku</text>
-  <rect x="74" y="30" width="53" height="22" rx="4" fill="#FF6B35"/>
-  <text x="135" y="41">39.23 ms</text>
-  <text class="ratio" x="119" y="41" text-anchor="end">1.30×</text>
-  <text x="64" y="71" text-anchor="end">Acorn</text>
-  <rect x="74" y="60" width="159" height="22" rx="4" fill="#4CC9F0"/>
-  <text x="241" y="71">116.99 ms</text>
-  <text class="ratio" x="225" y="71" text-anchor="end">3.88×</text>
-  <text x="64" y="101" text-anchor="end">Babel</text>
-  <rect x="74" y="90" width="192" height="22" rx="4" fill="#7209B7"/>
-  <text x="274" y="101">140.80 ms</text>
-  <text class="ratio" x="258" y="101" text-anchor="end">4.67×</text>
-  <text x="64" y="131" text-anchor="end">Oxc</text>
-  <rect x="74" y="120" width="253" height="22" rx="4" fill="#F72585"/>
-  <text x="335" y="131">185.60 ms</text>
-  <text class="ratio" x="319" y="131" text-anchor="end">6.16×</text>
-  <text x="64" y="161" text-anchor="end">SWC</text>
-  <rect x="74" y="150" width="486" height="22" rx="4" fill="#3A86FF"/>
-  <text x="568" y="161">356.86 ms</text>
-  <text class="ratio" x="552" y="161" text-anchor="end">11.84×</text>
+  <text x="120" y="11" text-anchor="end">SWC Next</text>
+  <rect x="130" y="0" width="34" height="22" rx="4" fill="#2DBD85"/>
+  <text x="172" y="11">37.49 ms</text>
+  <text x="120" y="41" text-anchor="end">Yuku</text>
+  <rect x="130" y="30" width="38" height="22" rx="4" fill="#FF6B35"/>
+  <text x="176" y="41">42.46 ms</text>
+  <text class="ratio" x="160" y="41" text-anchor="end">1.13×</text>
+  <text x="120" y="71" text-anchor="end">Oxc (raw transfer)</text>
+  <rect x="130" y="60" width="39" height="22" rx="4" fill="#B5179E"/>
+  <text x="177" y="71">43.76 ms</text>
+  <text class="ratio" x="161" y="71" text-anchor="end">1.17×</text>
+  <text x="120" y="101" text-anchor="end">Acorn</text>
+  <rect x="130" y="90" width="140" height="22" rx="4" fill="#4CC9F0"/>
+  <text x="278" y="101">155.93 ms</text>
+  <text class="ratio" x="262" y="101" text-anchor="end">4.16×</text>
+  <text x="120" y="131" text-anchor="end">Babel</text>
+  <rect x="130" y="120" width="148" height="22" rx="4" fill="#7209B7"/>
+  <text x="286" y="131">165.19 ms</text>
+  <text class="ratio" x="270" y="131" text-anchor="end">4.41×</text>
+  <text x="120" y="161" text-anchor="end">Oxc</text>
+  <rect x="130" y="150" width="227" height="22" rx="4" fill="#F72585"/>
+  <text x="365" y="161">253.26 ms</text>
+  <text class="ratio" x="349" y="161" text-anchor="end">6.75×</text>
+  <text x="120" y="191" text-anchor="end">SWC</text>
+  <rect x="130" y="180" width="430" height="22" rx="4" fill="#3A86FF"/>
+  <text x="568" y="191">480.46 ms</text>
+  <text class="ratio" x="552" y="191" text-anchor="end">12.81×</text>
 </svg>
