@@ -51,6 +51,9 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
         preserveParens: true,
         onComment: comments as acorn.Comment[],
       });
+      // Acorn exposes a hashbang through onComment rather than Program.
+      const hashbang = source.startsWith("#!") ? comments.find(comment => comment.start === 0) : undefined;
+      if (hashbang) Object.assign(program, { hashbang: { type: "Hashbang", value: hashbang.value } });
       return { program, comments, diagnostics: [] };
     };
   }

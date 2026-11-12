@@ -39,7 +39,8 @@ export function compareObjects(
     if (!hasExpected || !hasActual) {
       const present = hasExpected ? expected[key] : actual[key];
       // Missing optional values and empty lists carry no content.
-      if (present === null || present === undefined || (Array.isArray(present) && present.length === 0)) continue;
+      const literalValue = key === "value" && (expected.type === "Literal" || actual.type === "Literal");
+      if (!literalValue && (present === null || present === undefined || (Array.isArray(present) && present.length === 0))) continue;
       return { path: `${path}.${key}`, expected: hasExpected ? expected[key] : "<absent>", actual: hasActual ? actual[key] : "<absent>" };
     }
     const difference = firstDifference(expected[key], actual[key], `${path}.${key}`);
@@ -91,11 +92,14 @@ export async function preflightFile(input: string): Promise<void> {
   const source = await readFile(file.path, "utf-8");
   const tasks = createParserTasks(source, file.lang);
   const results: ParseCheck[] = parserNamesFor(file.lang).map(name => {
+    let output;
     try {
-      return { name, ...normalizeParseResult(tasks[name]!()) };
+      output = tasks[name]!();
     } catch (error) {
       return { name, ...normalizeParseFailure(error) };
     }
+    // A normalization bug is not a parser diagnostic.
+    return { name, ...normalizeParseResult(output, name) };
   });
   assertMatchingParseErrors(results, file.path);
   const reference = results.find(result => result.name === "Oxc")!;

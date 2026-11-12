@@ -12,7 +12,8 @@
     "readme": "node scripts/generate-readme.ts",
     "update-parsers": "pnpm update --latest",
     "type-check": "tsgo --noEmit",
-    "preflight": "node scripts/preflight.ts"
+    "preflight": "node scripts/preflight.ts",
+    "test:normalize": "node --test scripts/normalize-parse-result.test.ts"
   },
   "dependencies": {
     "@babel/parser": "^8.1.0",
