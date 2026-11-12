@@ -40,19 +40,31 @@ export function firstDifference(expected: unknown, actual: unknown, path = "$"):
     }
     return;
   }
-  if (expected !== null && actual !== null && typeof expected === "object" && typeof actual === "object" && !Array.isArray(expected) && !Array.isArray(actual)) {
-    const left = expected as Record<string, unknown>;
-    const right = actual as Record<string, unknown>;
-    for (const key of [...new Set([...Object.keys(left), ...Object.keys(right)])].sort()) {
-      if (!Object.hasOwn(left, key) || !Object.hasOwn(right, key)) {
-        return { path: `${path}.${key}`, expected: Object.hasOwn(left, key) ? left[key] : "<absent>", actual: Object.hasOwn(right, key) ? right[key] : "<absent>" };
-      }
-      const difference = firstDifference(left[key], right[key], `${path}.${key}`);
-      if (difference) return difference;
-    }
-    return;
-  }
+  if (isObject(expected) && isObject(actual)) return compareObjects(expected, actual, path);
   return { path, expected, actual };
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function compareObjects(
+  expected: Record<string, unknown>,
+  actual: Record<string, unknown>,
+  path = "$",
+): Difference | undefined {
+  for (const key of [...new Set([...Object.keys(expected), ...Object.keys(actual)])].sort()) {
+    const hasExpected = Object.hasOwn(expected, key);
+    const hasActual = Object.hasOwn(actual, key);
+    if (!hasExpected || !hasActual) {
+      const present = hasExpected ? expected[key] : actual[key];
+      // An omitted list and an explicitly empty list carry the same content.
+      if (Array.isArray(present) && present.length === 0) continue;
+      return { path: `${path}.${key}`, expected: hasExpected ? expected[key] : "<absent>", actual: hasActual ? actual[key] : "<absent>" };
+    }
+    const difference = firstDifference(expected[key], actual[key], `${path}.${key}`);
+    if (difference) return difference;
+  }
 }
 
 function describe(value: unknown): string {
