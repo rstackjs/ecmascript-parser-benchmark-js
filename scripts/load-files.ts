@@ -1,12 +1,12 @@
-import Bun from "bun";
+import { spawnSync } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 
 const DEST = "files";
 const REPO_URL = "https://github.com/yuku-toolchain/parser-benchmark-files";
 
 function run(cmd: string[]): string | null {
-  const result = Bun.spawnSync({ cmd, stdout: "pipe", stderr: "pipe" });
-  if (result.exitCode !== 0) return null;
+  const result = spawnSync(cmd[0]!, cmd.slice(1), { encoding: "utf-8" });
+  if (result.error || result.status !== 0) return null;
   return result.stdout.toString().trim();
 }
 
@@ -44,23 +44,12 @@ console.log(
 
 rmSync(DEST, { recursive: true, force: true });
 
-const clone = Bun.spawnSync({
-  cmd: [
-    "git",
-    "clone",
-    "--quiet",
-    "--no-progress",
-    "--single-branch",
-    "--depth",
-    "1",
-    REPO_URL,
-    DEST,
-  ],
-  stdout: "inherit",
-  stderr: "inherit",
-});
+const clone = spawnSync("git", [
+  "clone", "--quiet", "--no-progress", "--single-branch", "--depth", "1", REPO_URL, DEST,
+], { stdio: "inherit" });
 
-if (clone.exitCode !== 0) {
+if (clone.error) throw clone.error;
+if (clone.status !== 0) {
   console.error("\nFailed to download files\n");
   process.exit(1);
 }
