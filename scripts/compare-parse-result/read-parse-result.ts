@@ -4,6 +4,7 @@ import type { ParseResult as SwcNextResult } from "@swc-next/parser";
 import type { parse as yukuParse } from "yuku";
 import { isRecord } from "./normalize-ast.ts";
 import type { FlatComment, ParseOutput } from "./parse-result.ts";
+import { acornComments } from "./acorn-comments.ts";
 
 /** Read native parser results here, never in the timed parser callbacks. */
 export function readParseResult(result: unknown, parser?: string, source?: string): ParseOutput {
@@ -16,7 +17,8 @@ export function readParseResult(result: unknown, parser?: string, source?: strin
 
   switch (parser) {
     case "Acorn": {
-      const comments = (result.comments ?? null) as readonly FlatComment[] | null;
+      const comments = acornComments.get(result)
+        ?? (result.comments ?? null) as readonly FlatComment[] | null;
       // Acorn consumes but omits the hashbang from its AST. Recover this source
       // metadata only for normalization, without mutating the parser result.
       const hashbang = source?.startsWith("#!")

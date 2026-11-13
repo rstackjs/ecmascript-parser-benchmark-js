@@ -29,8 +29,8 @@ export async function preflightFile(input: string): Promise<void> {
   const reference = results.find(result => result.name === "Oxc")!;
   for (const result of results) {
     if (result.name === "Oxc") continue;
-    // Acorn and @swc/core do not expose comments in their original result.
-    const isCommentsUnavailable = ["Acorn", "SWC"].includes(result.name) && result.comments === null;
+    // @swc/core does not expose comments in its original result.
+    const isCommentsUnavailable = result.name === "SWC" && result.comments === null;
     try { compareParseResult(isCommentsUnavailable ? { ...reference, comments: null } : reference, result); }
     catch (error) { throw new Error(`${file.path}: ${result.name} versus Oxc: ${error instanceof Error ? error.message : String(error)}`); }
     if (isCommentsUnavailable) console.warn(`${file.path}: ${result.name} comments unavailable; checked AST and diagnostics only.`);

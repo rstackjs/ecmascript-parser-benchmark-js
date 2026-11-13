@@ -6,6 +6,7 @@ import { parseSync as swcNextParseSync, type Lang } from "@swc-next/parser";
 import type { ParseOptions as SwcParseOptions } from "@swc/types";
 import { parse as yukuParseSync, type SourceLang } from "yuku";
 import files from "./files.json" with { type: "json" };
+import { acornComments } from "./compare-parse-result/acorn-comments.ts";
 
 export const FILES = files as Record<string, { path: string; lang: SourceLang; source_url: string }>;
 
@@ -28,11 +29,17 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
   const tasks: Record<string, () => unknown> = {};
 
   if (!isTs && !isJsx) {
-    tasks.Acorn = () => acorn.parse(source, {
-      ecmaVersion: "latest",
-      sourceType,
-      preserveParens: true,
-    });
+    tasks.Acorn = () => {
+      const comments: acorn.Comment[] = [];
+      const program = acorn.parse(source, {
+        ecmaVersion: "latest",
+        sourceType,
+        preserveParens: true,
+        onComment: comments,
+      });
+      acornComments.set(program, comments);
+      return program;
+    };
   }
 
   const babelPlugins: babel.ParserPlugin[] = [];

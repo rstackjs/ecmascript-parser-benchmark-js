@@ -43,7 +43,7 @@ for (const file of (await readdir(fixtures)).sort()) {
     for (const result of results) assert.equal(result.diagnostics.length, 0, result.name);
     const reference = results.find(result => result.name === "Oxc")!;
     for (const result of results.filter(result => result.name !== "Oxc")) {
-      if (["Acorn", "SWC"].includes(result.name)) {
+      if (result.name === "SWC") {
         assert.equal(result.comments, null, `${result.name} does not expose comments`);
         assert.doesNotThrow(() => compareParseResult({ ...reference, comments: null }, result), result.name);
       } else assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
@@ -173,9 +173,26 @@ test("Acorn normalization distinguishes a hashbang from a leading line comment",
     const result = normalizeParseResult(raw, "Acorn", source);
     assert.equal(JSON.stringify(raw), before);
     const reference = normalizeParseResult(tasks.Oxc!(), "Oxc");
-    assert.doesNotThrow(() => compareParseResult(result, { ...reference, comments: null }));
-    assert.equal(result.comments, null);
+    assert.doesNotThrow(() => compareParseResult(result, reference));
+    assert.equal(result.comments!.length, prefix === "#!" ? 0 : 1);
   }
+});
+
+test("Acorn comments stay associated with each original result", () => {
+  const firstTask = createParserTasks("// first\nconst x = 1;", "js").Acorn!;
+  const first = firstTask();
+  const second = createParserTasks("/* second */ const x = 1;", "js").Acorn!();
+  const repeated = firstTask();
+  Object.freeze(first);
+  assert.equal(Object.hasOwn(first as object, "comments"), false);
+  const a = normalizeParseResult(first, "Acorn");
+  const b = normalizeParseResult(second, "Acorn");
+  assert.deepEqual(a.ast, b.ast);
+  assert.deepEqual(a.comments, [{ type: "Line", value: " first" }]);
+  assert.deepEqual(b.comments, [{ type: "Block", value: " second " }]);
+  assert.throws(() => compareParseResult(a, b), /\$\.comments/);
+  assert.deepEqual(a, normalizeParseResult(repeated, "Acorn"));
+  assert.deepEqual(normalizeParseResult(createParserTasks("const x = 1;", "js").Acorn!(), "Acorn").comments, []);
 });
 
 test("comments normalize type and metadata while retaining whitespace, content, and order", () => {
@@ -216,7 +233,7 @@ test("all exposed parser comments match an independently specified list", () => 
     // Inspection must use that run's result, even after another parse.
     const result = normalizeParseResult(first, parser, source);
     assert.deepEqual(result, normalizeParseResult(second, parser, source));
-    assert.deepEqual(result.comments, ["Acorn", "SWC"].includes(parser) ? null : [
+    assert.deepEqual(result.comments, parser === "SWC" ? null : [
       { type: "Line", value: "  one  " },
       { type: "Block", value: " two\r\n three " },
       { type: "Line", value: " last" },

@@ -16,7 +16,7 @@ compareParseResult(A, B); // Throws on the first difference.
 
 ## `normalizeParseResult(result, parser?, source?)`
 
-Accepts the original result returned by Acorn, Babel, Oxc, Oxc (raw transfer), SWC, SWC Next or Yuku. Pass the parser name to read its AST, comments and diagnostics. Acorn returns its Program directly without a comments list. Pass the original `source` for Acorn to normalize hashbang metadata that its AST omits. The original result is not modified.
+Accepts the original result returned by Acorn, Babel, Oxc, Oxc (raw transfer), SWC, SWC Next or Yuku. Pass the parser name to read its AST, comments and diagnostics. Acorn returns its Program directly; tasks in [`parsers.ts`](../parsers.ts) collect comments through `onComment` and associate them with that Program in an internal `WeakMap`. The normalizer retrieves them without adding fields to the AST. Acorn results created outside these tasks have unavailable comments unless provided in the common shape below. Pass the original `source` for Acorn to normalize hashbang metadata that its AST omits. The original result is not modified.
 
 Also accepts the common shape below, for example when reporting a thrown parser error or normalizing a synthetic AST. The parser name is optional for this shape; pass `"Babel"` or `"SWC"` when its AST uses that parser's schema.
 
@@ -51,11 +51,11 @@ Accepts two normalized results. Returns normally when they match, otherwise thro
 
 Object field order is ignored. Within AST objects, missing fields, `null` and empty arrays are equivalent, except `Literal.value: null` must be present. Array order and null holes are preserved. Different diagnostic wording remains a difference; normalization does not claim different parsers' errors mean the same thing.
 
-[`preflight.ts`](../preflight.ts) checks equality: matching results pass even when diagnostics are nonempty. Different diagnostic content still fails. Acorn and `@swc/core` do not expose comments in their original return values; preflight explicitly reports that they are checked for AST and diagnostics only. Other parsers' comments are compared.
+[`preflight.ts`](../preflight.ts) checks equality: matching results pass even when diagnostics are nonempty. Different diagnostic content still fails. `@swc/core` does not expose comments in its original return value; preflight explicitly reports that SWC is checked for AST and diagnostics only. All other parsers' comments, including Acorn's collected list, are compared.
 
 [`parsers.ts`](../parsers.ts) defines each parser call and its options once. Preflight and benchmark call the same function: it parses, reads the AST to include JavaScript AST construction, and returns the original result. Preflight passes that result directly to `normalizeParseResult(result, parser, source)`. All result adaptation and comparison live in this directory, outside benchmark timing.
 
-Parser options are written alongside each call. Both callers use module parsing for JS/TS/JSX/TSX and script parsing for declaration files. Parsers retain explicit parentheses where supported. Acorn uses no `onComment` callback. Parsers with lazy ASTs still access `program` before returning to include JavaScript AST construction in the measured time; lazy comment/diagnostic access is left to preflight. Any work performed by the parser itself remains part of the measured time.
+Parser options are written alongside each call. Both callers use module parsing for JS/TS/JSX/TSX and script parsing for declaration files. Parsers retain explicit parentheses where supported. Acorn collects a fresh comment list per parse and records it in a `WeakMap`; both operations are timed, and the map does not retain otherwise unreachable ASTs. Parsers with lazy ASTs still access `program` before returning to include JavaScript AST construction in the measured time; lazy comment/diagnostic access is left to preflight. Any work performed by the parser itself remains part of the measured time.
 
 ## `NormalizedParseResult`
 
