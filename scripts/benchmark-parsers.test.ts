@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import * as babel from "@babel/parser";
+import * as oxc from "oxc-parser";
 import { createParserTasks, parserNamesFor } from "./parsers.ts";
 
 test("benchmark tasks consume the AST without returning a parse-result wrapper", () => {
@@ -13,21 +15,17 @@ test("benchmark tasks consume the AST without returning a parse-result wrapper",
     const tasks = createParserTasks(source, lang, "benchmark");
     assert.deepEqual(Object.keys(tasks), parserNamesFor(lang));
     for (const name of parserNamesFor(lang)) {
-      assert.doesNotThrow(() => tasks[name]!.check(), `${lang}/${name}`);
-      assert.equal(tasks[name]!.run(), undefined, `${lang}/${name}`);
+      assert.equal(tasks[name]!(), undefined, `${lang}/${name}`);
     }
   }
 });
 
-test("benchmark options reject invalid input before timing", () => {
-  const tasks = createParserTasks("const value = ;", "js", "benchmark");
-  for (const name of parserNamesFor("js")) assert.throws(() => tasks[name]!.check(), name);
-});
-
-test("Babel recovery diagnostics are checked under the actual benchmark options", () => {
-  const task = createParserTasks("const value: number;", "ts", "benchmark").Babel!;
-  assert.doesNotThrow(() => task.run()); // Historical errorRecovery accepts a recovered AST.
-  assert.throws(() => task.check(), /Parse diagnostics/);
+test("benchmark callbacks allow parser results with diagnostics", () => {
+  const source = "const value: number;";
+  assert.ok(babel.parse(source, { sourceType: "module", plugins: ["typescript"], errorRecovery: true }).errors!.length);
+  assert.ok(oxc.parseSync("bench.ts", source).errors.length);
+  const tasks = createParserTasks(source, "ts", "benchmark");
+  for (const name of ["Babel", "Oxc", "Oxc (raw transfer)"]) assert.doesNotThrow(() => tasks[name]!(), name);
 });
 
 test("repeated Acorn parses retain independent comment lists", () => {

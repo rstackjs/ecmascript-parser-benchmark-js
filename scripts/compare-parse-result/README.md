@@ -49,9 +49,9 @@ Accepts two normalized results. Returns normally when they match, otherwise thro
 
 Object field order is ignored. Within AST objects, missing fields, `null` and empty arrays are equivalent, except `Literal.value: null` must be present. Array order and null holes are preserved. Different diagnostic wording remains a difference; normalization does not claim different parsers' errors mean the same thing.
 
-Comparison only checks equality. [`preflight.ts`](../preflight.ts) separately blocks timing when matching results contain parse errors. `@swc/core`'s `parseSync` does not expose collected comments; preflight explicitly reports that SWC is checked for AST and diagnostics only. Other parsers' comments are compared.
+[`preflight.ts`](../preflight.ts) checks equality: matching results pass even when diagnostics are nonempty. Different diagnostic content still fails. `@swc/core`'s `parseSync` does not expose collected comments; preflight explicitly reports that SWC is checked for AST and diagnostics only. Other parsers' comments are compared.
 
-[`parsers.ts`](../parsers.ts) defines each parser call once. `createParserTasks(source, lang)` exposes full results for comparison; `createParserTasks(source, lang, "benchmark")` selects the original benchmark options and returns separate `run` and `check` callbacks. Mode selection happens before timing. `run` only parses and reads the AST; `check` reads diagnostics before Tinybench starts. Comment/diagnostic decoding and normalization are not timed.
+[`parsers.ts`](../parsers.ts) defines each parser call once. `createParserTasks(source, lang)` exposes full results for comparison; `createParserTasks(source, lang, "benchmark")` selects the pre-#4 benchmark options and returns callbacks that only parse and read the AST. Mode selection happens before timing. There is no additional pre-run parse or diagnostics rejection in the benchmark. Comment/diagnostic decoding and normalization are not timed.
 
 ## `NormalizedParseResult`
 

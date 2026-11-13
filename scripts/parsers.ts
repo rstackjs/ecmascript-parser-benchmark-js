@@ -22,11 +22,6 @@ export interface ParseOutput {
   diagnostics: string[];
 }
 
-interface BenchmarkTask {
-  run: () => void;
-  check: () => void;
-}
-
 type ParserMode = "compare" | "benchmark";
 
 function isTsLang(lang: SourceLang): boolean {
@@ -40,26 +35,20 @@ export function parserNamesFor(lang: SourceLang): string[] {
 }
 
 /** Select callbacks before timing; the measured callback only parses and reads the AST. */
-function parserTask<T>(mode: ParserMode, parse: () => T, ast: (parsed: T) => unknown, output: (parsed: T) => ParseOutput): (() => ParseOutput) | BenchmarkTask {
+function parserTask<T>(mode: ParserMode, parse: () => T, ast: (parsed: T) => unknown, output: (parsed: T) => ParseOutput): () => ParseOutput | void {
   if (mode === "compare") return () => output(parse());
-  return {
-    run: () => { ast(parse()); },
-    check: () => {
-      const diagnostics = output(parse()).diagnostics;
-      if (diagnostics.length) throw new Error(`Parse diagnostics: ${diagnostics.join("; ")}`);
-    },
-  };
+  return () => { ast(parse()); };
 }
 
 export function createParserTasks(source: string, lang: SourceLang, mode?: "compare"): Record<string, () => ParseOutput>;
-export function createParserTasks(source: string, lang: SourceLang, mode: "benchmark"): Record<string, BenchmarkTask>;
-export function createParserTasks(source: string, lang: SourceLang, mode: ParserMode = "compare"): Record<string, (() => ParseOutput) | BenchmarkTask> {
+export function createParserTasks(source: string, lang: SourceLang, mode: "benchmark"): Record<string, () => void>;
+export function createParserTasks(source: string, lang: SourceLang, mode: ParserMode = "compare"): Record<string, () => ParseOutput | void> {
   const isTs = isTsLang(lang);
   const isJsx = lang === "tsx" || lang === "jsx";
   const isDts = lang === "dts";
   const isCompare = mode === "compare";
   const sourceType: "script" | "module" = isDts ? "script" : "module";
-  const tasks: Record<string, (() => ParseOutput) | BenchmarkTask> = {};
+  const tasks: Record<string, () => ParseOutput | void> = {};
 
   if (!isTs && !isJsx) {
     const comments: FlatComment[] = [];

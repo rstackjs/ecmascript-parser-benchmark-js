@@ -123,6 +123,10 @@ test("public API compares ASTs and diagnostic content", () => {
   const a = normalizeParseResult(output({ type: "Identifier", name: "x" }));
   const b = normalizeParseResult(output({ type: "Identifier", name: "y" }));
   assert.doesNotThrow(() => compareParseResult(a, a));
+  assert.doesNotThrow(() => compareParseResult(
+    normalizeParseResult(output({ type: "Identifier", name: "x" }, ["\u001b[31mRecovered\n error\u001b[0m"])),
+    normalizeParseResult(output({ type: "Identifier", name: "x" }, ["Recovered error"])),
+  ));
   assert.throws(() => compareParseResult(a, b), /\$\.ast\.name/);
   assert.throws(() => compareParseResult(a, { ...a, diagnostics: ["error"] }), /\$\.diagnostics\.length/);
   assert.throws(() => compareParseResult({ ...a, diagnostics: ["first"] }, { ...a, diagnostics: ["second"] }), /\$\.diagnostics\[0\]/);

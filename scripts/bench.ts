@@ -54,16 +54,14 @@ async function runTask(fileKey: string, parserName: string): Promise<void> {
   if (!file) throw new Error(`Unknown file: ${fileKey}`);
 
   const source = await readFile(join(process.cwd(), file.path), "utf-8");
-  const task = createParserTasks(source, file.lang, "benchmark")[parserName];
-  if (!task) {
+  const fn = createParserTasks(source, file.lang, "benchmark")[parserName];
+  if (!fn) {
     const label = parserLabel(parserName, parserNamesFor(file.lang));
     throw new Error(`${label} does not support ${fileKey}`);
   }
 
-  task.check();
-
   const bench = new Bench({ time: BENCH_TIME, warmupTime: BENCH_WARMUP });
-  bench.add(parserName, task.run);
+  bench.add(parserName, fn);
   await bench.run();
 
   const measuredTask = bench.tasks[0];

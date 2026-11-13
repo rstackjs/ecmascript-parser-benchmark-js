@@ -34,7 +34,6 @@ export async function preflightFile(input: string): Promise<void> {
     catch (error) { throw new Error(`${file.path}: ${result.name} versus Oxc: ${error instanceof Error ? error.message : String(error)}`); }
     if (isSwcCommentsUnavailable) console.warn(`${file.path}: SWC comments unavailable; checked AST and diagnostics only.`);
   }
-  if (reference.diagnostics.length) throw new Error(`${file.path}: parse errors present; timing blocked: ${reference.diagnostics.join("; ")}`);
 }
 
 async function main() {
