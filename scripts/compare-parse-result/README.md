@@ -51,7 +51,7 @@ Object field order is ignored. Within AST objects, missing fields, `null` and em
 
 Comparison only checks equality. [`preflight.ts`](../preflight.ts) separately blocks timing when matching results contain parse errors. `@swc/core`'s `parseSync` does not expose collected comments; preflight explicitly reports that SWC is checked for AST and diagnostics only. Other parsers' comments are compared.
 
-The comparison adapters expose full results and explicit parenthesized nodes for cross-parser checks. Timings use [`benchmark-parsers.ts`](../benchmark-parsers.ts), which preserves the original benchmark options and reads only the AST. Each benchmark child checks diagnostics with its actual benchmark options before starting Tinybench. Comment/diagnostic decoding and normalization are not timed.
+[`parsers.ts`](../parsers.ts) defines each parser call once. `createParserTasks(source, lang)` exposes full results for comparison; `createParserTasks(source, lang, "benchmark")` selects the original benchmark options and returns separate `run` and `check` callbacks. Mode selection happens before timing. `run` only parses and reads the AST; `check` reads diagnostics before Tinybench starts. Comment/diagnostic decoding and normalization are not timed.
 
 ## `NormalizedParseResult`
 

@@ -22,6 +22,13 @@ export interface ParseOutput {
   diagnostics: string[];
 }
 
+interface BenchmarkTask {
+  run: () => void;
+  check: () => void;
+}
+
+type ParserMode = "compare" | "benchmark";
+
 function isTsLang(lang: SourceLang): boolean {
   return lang === "ts" || lang === "tsx" || lang === "dts";
 }
@@ -32,105 +39,96 @@ export function parserNamesFor(lang: SourceLang): string[] {
     : ["Acorn", "Babel", "Oxc", "Oxc (raw transfer)", "SWC", "SWC Next", "Yuku"];
 }
 
-export function createParserTasks(source: string, lang: SourceLang): Record<string, () => ParseOutput> {
+/** Select callbacks before timing; the measured callback only parses and reads the AST. */
+function parserTask<T>(mode: ParserMode, parse: () => T, ast: (parsed: T) => unknown, output: (parsed: T) => ParseOutput): (() => ParseOutput) | BenchmarkTask {
+  if (mode === "compare") return () => output(parse());
+  return {
+    run: () => { ast(parse()); },
+    check: () => {
+      const diagnostics = output(parse()).diagnostics;
+      if (diagnostics.length) throw new Error(`Parse diagnostics: ${diagnostics.join("; ")}`);
+    },
+  };
+}
+
+export function createParserTasks(source: string, lang: SourceLang, mode?: "compare"): Record<string, () => ParseOutput>;
+export function createParserTasks(source: string, lang: SourceLang, mode: "benchmark"): Record<string, BenchmarkTask>;
+export function createParserTasks(source: string, lang: SourceLang, mode: ParserMode = "compare"): Record<string, (() => ParseOutput) | BenchmarkTask> {
   const isTs = isTsLang(lang);
   const isJsx = lang === "tsx" || lang === "jsx";
   const isDts = lang === "dts";
-  const sourceType = isDts ? "script" : "module";
-  const tasks: Record<string, () => ParseOutput> = {};
+  const isCompare = mode === "compare";
+  const sourceType: "script" | "module" = isDts ? "script" : "module";
+  const tasks: Record<string, (() => ParseOutput) | BenchmarkTask> = {};
 
   if (!isTs && !isJsx) {
-    tasks.Acorn = () => {
-      const comments: FlatComment[] = [];
-      const program = acorn.parse(source, {
-        ecmaVersion: "latest",
-        sourceType,
-        preserveParens: true,
-        onComment: comments as acorn.Comment[],
+    const comments: FlatComment[] = [];
+    const options: acorn.Options = { ecmaVersion: "latest", sourceType: "module" };
+    if (isCompare) {
+      options.preserveParens = true;
+      options.onComment = comments as acorn.Comment[];
+    }
+    tasks.Acorn = parserTask(mode,
+      () => acorn.parse(source, options),
+      program => program.body,
+      program => {
+        // Each parse has its own list; Acorn also exposes hashbang via onComment.
+        const parsedComments = comments.splice(0);
+        const hashbang = source.startsWith("#!") ? parsedComments.find(comment => comment.start === 0) : undefined;
+        if (hashbang) Object.assign(program, { hashbang: { type: "Hashbang", value: hashbang.value } });
+        return { program, comments: parsedComments, diagnostics: [] };
       });
-      // Acorn exposes a hashbang through onComment rather than Program.
-      const hashbang = source.startsWith("#!") ? comments.find(comment => comment.start === 0) : undefined;
-      if (hashbang) Object.assign(program, { hashbang: { type: "Hashbang", value: hashbang.value } });
-      return { program, comments, diagnostics: [] };
-    };
   }
 
   const babelPlugins: babel.ParserPlugin[] = [];
   if (isTs) babelPlugins.push(isDts ? ["typescript", { dts: true }] : "typescript");
   if (isJsx) babelPlugins.push("jsx");
-  tasks.Babel = () => {
-    const parsed = babel.parse(source, {
-      sourceType,
-      plugins: babelPlugins,
-      createParenthesizedExpressions: true,
-      // Ambient modules in script-mode declaration files can contain exports.
-      allowImportExportEverywhere: isDts,
-    });
-    return { program: parsed.program, comments: parsed.comments ?? [], diagnostics: [] };
-  };
+  const babelOptions: babel.ParserOptions = isCompare
+    ? { sourceType, plugins: babelPlugins, createParenthesizedExpressions: true, allowImportExportEverywhere: isDts }
+    : { sourceType: "module", plugins: babelPlugins, errorRecovery: isTs };
+  tasks.Babel = parserTask(mode,
+    () => babel.parse(source, babelOptions),
+    parsed => parsed.program,
+    parsed => ({ program: parsed.program, comments: parsed.comments ?? [], diagnostics: (parsed.errors ?? []).map(error => error!.message) }));
 
-  const oxcFilename = isDts ? "bench.d.ts" : isJsx ? (isTs ? "bench.tsx" : "bench.jsx") : isTs ? "bench.ts" : "bench.js";
-  tasks.Oxc = () => {
-    const parsed = oxc.parseSync(oxcFilename, source, {
-      lang,
-      sourceType,
-      preserveParens: true,
-    });
-    return {
-      program: parsed.program,
-      comments: parsed.comments,
-      diagnostics: parsed.errors.map((error) => error.message),
-    };
-  };
+  const filename = isDts ? "bench.d.ts" : isJsx ? (isTs ? "bench.tsx" : "bench.jsx") : isTs ? "bench.ts" : "bench.js";
+  const oxcOptions: oxc.ParserOptions | undefined = isCompare ? { lang, sourceType, preserveParens: true } : undefined;
+  for (const raw of [false, true]) {
+    const options = raw ? { ...oxcOptions, experimentalRawTransfer: true } as oxc.ParserOptions & { experimentalRawTransfer: true } : oxcOptions;
+    tasks[raw ? "Oxc (raw transfer)" : "Oxc"] = parserTask(mode,
+      () => oxc.parseSync(filename, source, options),
+      parsed => parsed.program,
+      parsed => ({ program: parsed.program, comments: parsed.comments, diagnostics: parsed.errors.map(error => error.message) }));
+  }
 
-  tasks["Oxc (raw transfer)"] = () => {
-    const parsed = oxc.parseSync(oxcFilename, source, {
-      lang, sourceType, preserveParens: true,
-      experimentalRawTransfer: true,
-    } as oxc.ParserOptions & { experimentalRawTransfer: true });
-    return { program: parsed.program, comments: parsed.comments,
-      diagnostics: parsed.errors.map(error => error.message) };
-  };
-
-  const swcSyntax: SwcParseOptions & { isModule?: boolean } = isTs
+  const swcOptions: SwcParseOptions & { isModule?: boolean } = isTs
     ? { syntax: "typescript", tsx: isJsx, isModule: !isDts }
-    : { syntax: "ecmascript", jsx: isJsx, isModule: true };
-  tasks.SWC = () => {
-    const program = swc.parseSync(source, { ...swcSyntax, comments: true });
-    return { program, comments: null, diagnostics: [] };
-  };
+    : isJsx ? { syntax: "ecmascript", jsx: true } : { syntax: "ecmascript" };
+  if (isCompare) {
+    swcOptions.comments = true;
+    if (swcOptions.syntax === "ecmascript") { swcOptions.jsx = isJsx; swcOptions.isModule = true; }
+  }
+  tasks.SWC = parserTask(mode,
+    () => swc.parseSync(source, swcOptions),
+    program => program.body,
+    program => ({ program, comments: null, diagnostics: [] }));
 
-  tasks["SWC Next"] = () => {
-    const parsed = swcNextParseSync(source, {
-      lang: lang as Lang,
-      sourceType,
-      comments: "flat",
-      preserveParens: true,
-    });
-    return {
-      program: parsed.program,
-      comments: parsed.comments,
-      diagnostics: parsed.diagnostics
-        .filter((diagnostic) => diagnostic.severity === "error")
-        .map((diagnostic) => diagnostic.message),
-    };
-  };
+  const swcNextOptions = isCompare ? { lang: lang as Lang, sourceType, comments: "flat" as const, preserveParens: true } : { lang: lang as Lang };
+  tasks["SWC Next"] = parserTask(mode,
+    () => swcNextParseSync(source, swcNextOptions),
+    parsed => parsed.program,
+    parsed => ({ program: parsed.program, comments: parsed.comments, diagnostics: parsed.diagnostics
+      .filter(diagnostic => diagnostic.severity === "error").map(diagnostic => diagnostic.message) }));
 
-  tasks.Yuku = () => {
-    const parsed = yukuParseSync(source, { lang, sourceType, preserveParens: true });
-    return {
-      program: parsed.program,
-      comments: parsed.comments,
-      diagnostics: parsed.diagnostics.map(
-        (diagnostic) => `${diagnostic.message} at [${diagnostic.start}, ${diagnostic.end})`,
-      ),
-    };
-  };
-
+  const yukuOptions = isCompare ? { lang, sourceType, preserveParens: true } : lang === "js" ? undefined : { lang };
+  tasks.Yuku = parserTask(mode,
+    () => yukuParseSync(source, yukuOptions),
+    parsed => parsed.program,
+    parsed => ({ program: parsed.program, comments: parsed.comments,
+      diagnostics: parsed.diagnostics.map(diagnostic => `${diagnostic.message} at [${diagnostic.start}, ${diagnostic.end})`) }));
   return tasks;
 }
 
 export function parserLabel(name: string, parserNames: string[]): string {
   return `Parser ${String.fromCharCode(65 + parserNames.indexOf(name))}`;
 }
-

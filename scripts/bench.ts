@@ -5,8 +5,7 @@ import { pathToFileURL } from "node:url";
 import { Bench } from "tinybench";
 import * as oxc from "oxc-parser";
 import type { SourceLang } from "yuku";
-import { FILES, parserNamesFor, parserLabel } from "./parsers.ts";
-import { createBenchmarkParserTasks } from "./benchmark-parsers.ts";
+import { FILES, createParserTasks, parserNamesFor, parserLabel } from "./parsers.ts";
 const BENCH_TIME = Number(process.env.BENCH_TIME ?? 10000);
 const BENCH_WARMUP = Number(process.env.BENCH_WARMUP ?? 2000);
 const BENCH_RUNS = Number(process.env.BENCH_RUNS ?? 3);
@@ -55,7 +54,7 @@ async function runTask(fileKey: string, parserName: string): Promise<void> {
   if (!file) throw new Error(`Unknown file: ${fileKey}`);
 
   const source = await readFile(join(process.cwd(), file.path), "utf-8");
-  const task = createBenchmarkParserTasks(source, file.lang)[parserName];
+  const task = createParserTasks(source, file.lang, "benchmark")[parserName];
   if (!task) {
     const label = parserLabel(parserName, parserNamesFor(file.lang));
     throw new Error(`${label} does not support ${fileKey}`);
