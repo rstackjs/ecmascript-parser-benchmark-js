@@ -15,14 +15,16 @@ export async function preflightFile(input: string): Promise<void> {
   const source = await readFile(file.path, "utf-8");
   const tasks = createParserTasks(source, file.lang);
   const results: (NormalizedParseResult & { name: string })[] = parserNamesFor(file.lang).map(name => {
-    let output: ParseOutput;
+    const task = tasks[name]!;
+    let parsed: unknown;
     try {
-      output = tasks[name]!();
+      parsed = task.run();
     } catch (error) {
-      output = { program: undefined, comments: null, diagnostics: [error instanceof Error ? error.message : String(error)] };
+      const failure: ParseOutput = { program: undefined, comments: null, diagnostics: [error instanceof Error ? error.message : String(error)] };
+      return { name, ...normalizeParseResult(failure, name) };
     }
-    // A normalization bug is not a parser diagnostic.
-    return { name, ...normalizeParseResult(output, name) };
+    // Result inspection and normalization bugs are not parser diagnostics.
+    return { name, ...normalizeParseResult(task.toParseResult(parsed), name) };
   });
   const reference = results.find(result => result.name === "Oxc")!;
   for (const result of results) {

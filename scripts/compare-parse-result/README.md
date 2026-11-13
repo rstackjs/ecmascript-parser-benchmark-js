@@ -51,7 +51,9 @@ Object field order is ignored. Within AST objects, missing fields, `null` and em
 
 [`preflight.ts`](../preflight.ts) checks equality: matching results pass even when diagnostics are nonempty. Different diagnostic content still fails. `@swc/core`'s `parseSync` does not expose collected comments; preflight explicitly reports that SWC is checked for AST and diagnostics only. Other parsers' comments are compared.
 
-[`parsers.ts`](../parsers.ts) defines each parser call once. `createParserTasks(source, lang)` exposes full results for comparison; `createParserTasks(source, lang, "benchmark")` selects the pre-#4 benchmark options and returns callbacks that only parse and read the AST. Mode selection happens before timing. There is no additional pre-run parse or diagnostics rejection in the benchmark. Comment/diagnostic decoding and normalization are not timed.
+[`parsers.ts`](../parsers.ts) defines each parser call and its options once. Preflight and benchmark use the same `run()` callback: it parses, reads the AST to include JavaScript AST construction, and returns the original result. Preflight then calls `toParseResult(result)` to read comments and diagnostics from that result before normalization. There are no separate parser modes or extra parses for result inspection.
+
+Parser options are written alongside each call. Both callers use module parsing for JS/TS/JSX/TSX and script parsing for declaration files. Parsers retain explicit parentheses where supported. Acorn collects comments during parsing; parsers with lazy comment/diagnostic access decode those fields only during preflight. Any work performed by the parser itself remains part of the measured time.
 
 ## `NormalizedParseResult`
 

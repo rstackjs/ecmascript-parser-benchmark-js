@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
-import { createParserTasks, parserNamesFor, type ParseOutput } from "../parsers.ts";
+import { createParserTasks, parserNamesFor, type ParseOutput, type ParserTask } from "../parsers.ts";
 import { normalizeParseResult, compareParseResult } from "./index.ts";
 import type { SourceLang } from "yuku";
+
+const parseResult = (task: ParserTask) => task.toParseResult(task.run());
 
 const fixtures = new URL("./fixtures/normalize/", import.meta.url);
 const output = (program: unknown, diagnostics: string[] = [], comments: ParseOutput["comments"] = null): ParseOutput => ({ program, diagnostics, comments });
@@ -14,11 +16,15 @@ for (const file of (await readdir(fixtures)).sort()) {
     const lang: SourceLang = file.endsWith(".d.ts") ? "dts" : file.endsWith(".tsx") ? "tsx" : file.endsWith(".jsx") ? "jsx" : file.endsWith(".ts") ? "ts" : "js";
     const tasks = createParserTasks(source, lang);
     const results = parserNamesFor(lang).map(name => {
-      // Keep normalization outside this catch: adapter bugs must fail the test.
-      let parsed: ParseOutput;
-      try { parsed = tasks[name]!(); }
-      catch (error) { parsed = output(undefined, [error instanceof Error ? error.message : String(error)]); }
-      return { name, ...normalizeParseResult(parsed, name) };
+      const task = tasks[name]!;
+      let parsed: unknown;
+      try { parsed = task.run(); }
+      catch (error) {
+        const failure = output(undefined, [error instanceof Error ? error.message : String(error)]);
+        return { name, ...normalizeParseResult(failure, name) };
+      }
+      // Adapter and normalization bugs must fail the test, not become diagnostics.
+      return { name, ...normalizeParseResult(task.toParseResult(parsed), name) };
     });
     if (file.startsWith("invalid-")) {
       if (file === "invalid-export.js") {
@@ -65,8 +71,8 @@ test("normalization preserves values, child order, optionality, and unknown fiel
     const leftTasks = createParserTasks(left, lang);
     const rightTasks = createParserTasks(right, lang);
     for (const parser of parserNamesFor(lang)) {
-      const a = normalizeParseResult(leftTasks[parser]!(), parser);
-      const b = normalizeParseResult(rightTasks[parser]!(), parser);
+      const a = normalizeParseResult(parseResult(leftTasks[parser]!), parser);
+      const b = normalizeParseResult(parseResult(rightTasks[parser]!), parser);
       assert.equal(a.diagnostics.length, 0);
       assert.equal(b.diagnostics.length, 0);
       assert.throws(() => compareParseResult(a, b), `${parser} lost difference between ${left} and ${right}`);
@@ -88,7 +94,7 @@ test("the public normalizer dispatches Babel ASTs and diagnostics to its adapter
 test("normalization is deterministic, idempotent, and leaves parser outputs intact", () => {
   const tasks = createParserTasks('"use strict"; const x = { key: 1, ...other };', "js");
   for (const parser of ["Babel", "SWC"]) {
-    const original = tasks[parser]!();
+    const original = parseResult(tasks[parser]!);
     const before = JSON.stringify(original);
     const first = normalizeParseResult(original, parser);
     assert.equal(JSON.stringify(original), before);
@@ -99,7 +105,7 @@ test("normalization is deterministic, idempotent, and leaves parser outputs inta
 
 test("SWC transport decoding preserves literal escapes and lone surrogates", () => {
   const tasks = createParserTasks(String.raw`const values = ["\uD800", "\\uD800", "\\\\u2028", "\\uGGGG", "\\u123", "\\n"];`, "js");
-  const result = normalizeParseResult(tasks.SWC!(), "SWC");
+  const result = normalizeParseResult(parseResult(tasks.SWC!), "SWC");
   const ast = result.ast as { body: { declarations: { init: { elements: { value: string }[] } }[] }[] };
   assert.deepEqual(ast.body[0]!.declarations[0]!.init.elements.map(node => node.value),
     ["\uD800", "\\uD800", "\\\\u2028", "\\uGGGG", "\\u123", "\\n"]);
@@ -174,7 +180,12 @@ test("comments normalize type and metadata while retaining whitespace, content, 
 test("all exposed parser comments match an independently specified list", () => {
   const tasks = createParserTasks('#!/usr/bin/env node\n//  one  \r\n/* two\r\n three */ const x=1; // last\n/** doc */', "js");
   for (const parser of parserNamesFor("js")) {
-    const result = normalizeParseResult(tasks[parser]!(), parser);
+    const task = tasks[parser]!;
+    const first = task.run();
+    const second = task.run();
+    // Inspection must use that run's result, even after another parse.
+    const result = normalizeParseResult(task.toParseResult(first), parser);
+    assert.deepEqual(result, normalizeParseResult(task.toParseResult(second), parser));
     assert.deepEqual(result.comments, parser === "SWC" ? null : [
       { type: "Line", value: "  one  " },
       { type: "Block", value: " two\r\n three " },
