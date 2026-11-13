@@ -5,7 +5,8 @@ import { pathToFileURL } from "node:url";
 import { Bench } from "tinybench";
 import * as oxc from "oxc-parser";
 import type { SourceLang } from "yuku";
-import { FILES, createParserTasks, parserNamesFor, parserLabel } from "./parsers.ts";
+import { FILES, parserNamesFor, parserLabel } from "./parsers.ts";
+import { createBenchmarkParserTasks } from "./benchmark-parsers.ts";
 const BENCH_TIME = Number(process.env.BENCH_TIME ?? 10000);
 const BENCH_WARMUP = Number(process.env.BENCH_WARMUP ?? 2000);
 const BENCH_RUNS = Number(process.env.BENCH_RUNS ?? 3);
@@ -54,29 +55,25 @@ async function runTask(fileKey: string, parserName: string): Promise<void> {
   if (!file) throw new Error(`Unknown file: ${fileKey}`);
 
   const source = await readFile(join(process.cwd(), file.path), "utf-8");
-  const tasks = createParserTasks(source, file.lang);
-  const fn = tasks[parserName];
-  if (!fn) {
+  const task = createBenchmarkParserTasks(source, file.lang)[parserName];
+  if (!task) {
     const label = parserLabel(parserName, parserNamesFor(file.lang));
     throw new Error(`${label} does not support ${fileKey}`);
   }
 
-  const parsed = fn();
-  if (parsed.diagnostics.length > 0) {
-    throw new Error(`Parse diagnostics: ${parsed.diagnostics.join("; ")}`);
-  }
+  task.check();
 
   const bench = new Bench({ time: BENCH_TIME, warmupTime: BENCH_WARMUP });
-  bench.add(parserName, fn);
+  bench.add(parserName, task.run);
   await bench.run();
 
-  const task = bench.tasks[0];
-  if (!task?.result || task.result.state !== "completed") {
+  const measuredTask = bench.tasks[0];
+  if (!measuredTask?.result || measuredTask.result.state !== "completed") {
     process.stdout.write(JSON.stringify({ ok: false }));
     return;
   }
 
-  const latency = task.result.latency;
+  const latency = measuredTask.result.latency;
   const result: RunResult = {
     name: parserName,
     mean: latency.mean,
