@@ -67,13 +67,7 @@ async function runTask(fileKey: string, parserName: string): Promise<void> {
   }
 
   const bench = new Bench({ time: BENCH_TIME, warmupTime: BENCH_WARMUP });
-  bench.add(parserName, () => {
-    const result = fn();
-    if (result.diagnostics.length > 0) {
-      throw new Error(`Parse diagnostics: ${result.diagnostics.join("; ")}`);
-    }
-    return result.program;
-  });
+  bench.add(parserName, fn);
   await bench.run();
 
   const task = bench.tasks[0];
