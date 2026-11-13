@@ -28,33 +28,23 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
   const tasks: Record<string, () => unknown> = {};
 
   if (!isTs && !isJsx) {
-    tasks.Acorn = () => {
-      const comments: acorn.Comment[] = [];
-      const program = acorn.parse(source, {
-        ecmaVersion: "latest",
-        sourceType,
-        preserveParens: true,
-        onComment: comments,
-      });
-      program.body;
-      return Object.assign(program, { comments });
-    };
+    tasks.Acorn = () => acorn.parse(source, {
+      ecmaVersion: "latest",
+      sourceType,
+      preserveParens: true,
+    });
   }
 
   const babelPlugins: babel.ParserPlugin[] = [];
   if (isTs) babelPlugins.push(isDts ? ["typescript", { dts: true }] : "typescript");
   if (isJsx) babelPlugins.push("jsx");
-  tasks.Babel = () => {
-    const parsed = babel.parse(source, {
-      sourceType,
-      plugins: babelPlugins,
-      createParenthesizedExpressions: true,
-      allowImportExportEverywhere: isDts,
-      errorRecovery: isTs,
-    });
-    parsed.program;
-    return parsed;
-  };
+  tasks.Babel = () => babel.parse(source, {
+    sourceType,
+    plugins: babelPlugins,
+    createParenthesizedExpressions: true,
+    allowImportExportEverywhere: isDts,
+    errorRecovery: isTs,
+  });
 
   const filename = isDts ? "bench.d.ts" : isJsx ? (isTs ? "bench.tsx" : "bench.jsx") : isTs ? "bench.ts" : "bench.js";
   for (const isRawTransfer of [false, true]) {
@@ -70,16 +60,12 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
     };
   }
 
-  tasks.SWC = () => {
-    const program = swc.parseSync(source, {
-      syntax: isTs ? "typescript" : "ecmascript",
-      ...(isTs ? { tsx: isJsx } : { jsx: isJsx }),
-      // SWC accepts this option at runtime; its type declaration omits it.
-      isModule: !isDts,
-    } as SwcParseOptions & { isModule: boolean });
-    program.body;
-    return program;
-  };
+  tasks.SWC = () => swc.parseSync(source, {
+    syntax: isTs ? "typescript" : "ecmascript",
+    ...(isTs ? { tsx: isJsx } : { jsx: isJsx }),
+    // SWC accepts this option at runtime; its type declaration omits it.
+    isModule: !isDts,
+  } as SwcParseOptions & { isModule: boolean });
 
   tasks["SWC Next"] = () => {
     const parsed = swcNextParseSync(source, {

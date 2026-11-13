@@ -29,12 +29,11 @@ export async function preflightFile(input: string): Promise<void> {
   const reference = results.find(result => result.name === "Oxc")!;
   for (const result of results) {
     if (result.name === "Oxc") continue;
-    // @swc/core parseSync does not expose its collected comments. Keep the
-    // limitation explicit; never substitute another parser's comment list.
-    const isSwcCommentsUnavailable = result.name === "SWC" && result.comments === null;
-    try { compareParseResult(isSwcCommentsUnavailable ? { ...reference, comments: null } : reference, result); }
+    // Acorn and @swc/core do not expose comments in their original result.
+    const isCommentsUnavailable = ["Acorn", "SWC"].includes(result.name) && result.comments === null;
+    try { compareParseResult(isCommentsUnavailable ? { ...reference, comments: null } : reference, result); }
     catch (error) { throw new Error(`${file.path}: ${result.name} versus Oxc: ${error instanceof Error ? error.message : String(error)}`); }
-    if (isSwcCommentsUnavailable) console.warn(`${file.path}: SWC comments unavailable; checked AST and diagnostics only.`);
+    if (isCommentsUnavailable) console.warn(`${file.path}: ${result.name} comments unavailable; checked AST and diagnostics only.`);
   }
 }
 

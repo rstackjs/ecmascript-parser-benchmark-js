@@ -17,14 +17,13 @@ export function readParseResult(result: unknown, parser?: string, source?: strin
   switch (parser) {
     case "Acorn": {
       const comments = (result.comments ?? null) as readonly FlatComment[] | null;
-      // Only #! is a hashbang; a normal // comment at offset zero is not.
+      // Acorn consumes but omits the hashbang from its AST. Recover this source
+      // metadata only for normalization, without mutating the parser result.
       const hashbang = source?.startsWith("#!")
-        ? comments?.find(comment => comment.start === 0)
+        ? { type: "Hashbang", value: source.slice(2).split(/[\r\n\u2028\u2029]/, 1)[0] }
         : undefined;
       return {
-        program: hashbang
-          ? { ...result, hashbang: { type: "Hashbang", value: hashbang.value } }
-          : result,
+        program: hashbang ? { ...result, hashbang } : result,
         comments,
         diagnostics: [],
       };

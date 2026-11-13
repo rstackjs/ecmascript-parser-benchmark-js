@@ -43,8 +43,8 @@ for (const file of (await readdir(fixtures)).sort()) {
     for (const result of results) assert.equal(result.diagnostics.length, 0, result.name);
     const reference = results.find(result => result.name === "Oxc")!;
     for (const result of results.filter(result => result.name !== "Oxc")) {
-      if (result.name === "SWC") {
-        assert.equal(result.comments, null, "SWC does not expose comments");
+      if (["Acorn", "SWC"].includes(result.name)) {
+        assert.equal(result.comments, null, `${result.name} does not expose comments`);
         assert.doesNotThrow(() => compareParseResult({ ...reference, comments: null }, result), result.name);
       } else assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
     }
@@ -167,11 +167,14 @@ test("Acorn normalization distinguishes a hashbang from a leading line comment",
     const source = `${prefix}/usr/bin/env node\nconst x = 1;`;
     const tasks = createParserTasks(source, "js");
     const raw = tasks.Acorn!();
+    assert.equal(Object.hasOwn(raw as object, "comments"), false);
+    assert.equal(Object.hasOwn(raw as object, "hashbang"), false);
     const before = JSON.stringify(raw);
     const result = normalizeParseResult(raw, "Acorn", source);
     assert.equal(JSON.stringify(raw), before);
-    assert.doesNotThrow(() => compareParseResult(result, normalizeParseResult(tasks.Oxc!(), "Oxc")));
-    assert.equal(result.comments!.length, prefix === "#!" ? 0 : 1);
+    const reference = normalizeParseResult(tasks.Oxc!(), "Oxc");
+    assert.doesNotThrow(() => compareParseResult(result, { ...reference, comments: null }));
+    assert.equal(result.comments, null);
   }
 });
 
@@ -213,7 +216,7 @@ test("all exposed parser comments match an independently specified list", () => 
     // Inspection must use that run's result, even after another parse.
     const result = normalizeParseResult(first, parser, source);
     assert.deepEqual(result, normalizeParseResult(second, parser, source));
-    assert.deepEqual(result.comments, parser === "SWC" ? null : [
+    assert.deepEqual(result.comments, ["Acorn", "SWC"].includes(parser) ? null : [
       { type: "Line", value: "  one  " },
       { type: "Block", value: " two\r\n three " },
       { type: "Line", value: " last" },
