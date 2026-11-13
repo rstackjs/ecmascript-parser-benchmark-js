@@ -1,4 +1,4 @@
-import type { FlatComment, ParseOutput } from "../parsers.ts";
+import type { FlatComment, ParseOutput } from "./parse-result.ts";
 import { isRecord } from "./normalize-ast.ts";
 
 /** Preserve comment content and source order; omit location metadata. */

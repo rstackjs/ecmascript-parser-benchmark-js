@@ -8,15 +8,17 @@ import {
   compareParseResult,
 } from "./scripts/compare-parse-result/index.ts";
 
-const A = normalizeParseResult(outputA, "Oxc");
-const B = normalizeParseResult(outputB, "SWC");
+const A = normalizeParseResult(oxcResult, "Oxc");
+const B = normalizeParseResult(swcResult, "SWC");
 
 compareParseResult(A, B); // Throws on the first difference.
 ```
 
-## `normalizeParseResult(output, parser?)`
+## `normalizeParseResult(result, parser?, source?)`
 
-Accepts the shared parser adapter output from [`parsers.ts`](../parsers.ts):
+Accepts the original result returned by Acorn, Babel, Oxc, Oxc (raw transfer), SWC, SWC Next or Yuku. Pass the parser name to read its AST, comments and diagnostics. Acorn returns its Program directly; [`parsers.ts`](../parsers.ts) attaches the collected `comments` list. Pass the original `source` for Acorn so its hashbang can be distinguished from an ordinary comment at offset zero.
+
+Also accepts the common shape below, for example when reporting a thrown parser error or normalizing a synthetic AST. The parser name is optional for this shape; pass `"Babel"` or `"SWC"` when its AST uses that parser's schema.
 
 ```ts
 {
@@ -51,7 +53,7 @@ Object field order is ignored. Within AST objects, missing fields, `null` and em
 
 [`preflight.ts`](../preflight.ts) checks equality: matching results pass even when diagnostics are nonempty. Different diagnostic content still fails. `@swc/core`'s `parseSync` does not expose collected comments; preflight explicitly reports that SWC is checked for AST and diagnostics only. Other parsers' comments are compared.
 
-[`parsers.ts`](../parsers.ts) defines each parser call and its options once. Preflight and benchmark use the same `run()` callback: it parses, reads the AST to include JavaScript AST construction, and returns the original result. Preflight then calls `toParseResult(result)` to read comments and diagnostics from that result before normalization. There are no separate parser modes or extra parses for result inspection.
+[`parsers.ts`](../parsers.ts) defines each parser call and its options once. Preflight and benchmark call the same function: it parses, reads the AST to include JavaScript AST construction, and returns the original result. Preflight passes that result directly to `normalizeParseResult(result, parser, source)`. All result adaptation and comparison live in this directory, outside benchmark timing.
 
 Parser options are written alongside each call. Both callers use module parsing for JS/TS/JSX/TSX and script parsing for declaration files. Parsers retain explicit parentheses where supported. Acorn collects comments during parsing; parsers with lazy comment/diagnostic access decode those fields only during preflight. Any work performed by the parser itself remains part of the measured time.
 

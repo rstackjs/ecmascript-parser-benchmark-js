@@ -54,7 +54,7 @@ async function runTask(fileKey: string, parserName: string): Promise<void> {
   if (!file) throw new Error(`Unknown file: ${fileKey}`);
 
   const source = await readFile(join(process.cwd(), file.path), "utf-8");
-  const fn = createParserTasks(source, file.lang)[parserName]?.run;
+  const fn = createParserTasks(source, file.lang)[parserName];
   if (!fn) {
     const label = parserLabel(parserName, parserNamesFor(file.lang));
     throw new Error(`${label} does not support ${fileKey}`);

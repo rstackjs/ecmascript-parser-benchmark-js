@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { FILES, createParserTasks, parserNamesFor, type ParseOutput } from "./parsers.ts";
+import { FILES, createParserTasks, parserNamesFor } from "./parsers.ts";
 import { normalizeParseResult, compareParseResult, type NormalizedParseResult } from "./compare-parse-result/index.ts";
 import type { SourceLang } from "yuku";
 
@@ -18,13 +18,13 @@ export async function preflightFile(input: string): Promise<void> {
     const task = tasks[name]!;
     let parsed: unknown;
     try {
-      parsed = task.run();
+      parsed = task();
     } catch (error) {
-      const failure: ParseOutput = { program: undefined, comments: null, diagnostics: [error instanceof Error ? error.message : String(error)] };
+      const failure = { program: undefined, comments: null, diagnostics: [error instanceof Error ? error.message : String(error)] };
       return { name, ...normalizeParseResult(failure, name) };
     }
     // Result inspection and normalization bugs are not parser diagnostics.
-    return { name, ...normalizeParseResult(task.toParseResult(parsed), name) };
+    return { name, ...normalizeParseResult(parsed, name, source) };
   });
   const reference = results.find(result => result.name === "Oxc")!;
   for (const result of results) {
