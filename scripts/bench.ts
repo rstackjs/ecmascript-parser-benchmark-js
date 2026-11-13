@@ -54,35 +54,23 @@ async function runTask(fileKey: string, parserName: string): Promise<void> {
   if (!file) throw new Error(`Unknown file: ${fileKey}`);
 
   const source = await readFile(join(process.cwd(), file.path), "utf-8");
-  const tasks = createParserTasks(source, file.lang);
-  const fn = tasks[parserName];
+  const fn = createParserTasks(source, file.lang)[parserName];
   if (!fn) {
     const label = parserLabel(parserName, parserNamesFor(file.lang));
     throw new Error(`${label} does not support ${fileKey}`);
   }
 
-  const parsed = fn();
-  if (parsed.diagnostics.length > 0) {
-    throw new Error(`Parse diagnostics: ${parsed.diagnostics.join("; ")}`);
-  }
-
   const bench = new Bench({ time: BENCH_TIME, warmupTime: BENCH_WARMUP });
-  bench.add(parserName, () => {
-    const result = fn();
-    if (result.diagnostics.length > 0) {
-      throw new Error(`Parse diagnostics: ${result.diagnostics.join("; ")}`);
-    }
-    return result.program;
-  });
+  bench.add(parserName, fn);
   await bench.run();
 
-  const task = bench.tasks[0];
-  if (!task?.result || task.result.state !== "completed") {
+  const measuredTask = bench.tasks[0];
+  if (!measuredTask?.result || measuredTask.result.state !== "completed") {
     process.stdout.write(JSON.stringify({ ok: false }));
     return;
   }
 
-  const latency = task.result.latency;
+  const latency = measuredTask.result.latency;
   const result: RunResult = {
     name: parserName,
     mean: latency.mean,

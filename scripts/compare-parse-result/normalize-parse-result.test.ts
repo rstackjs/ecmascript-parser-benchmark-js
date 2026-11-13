@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
-import { createParserTasks, parserNamesFor, type ParseOutput } from "../parsers.ts";
+import { createParserTasks, parserNamesFor } from "../parsers.ts";
+import type { ParseOutput } from "./parse-result.ts";
 import { normalizeParseResult, compareParseResult } from "./index.ts";
 import type { SourceLang } from "yuku";
 
@@ -14,11 +15,15 @@ for (const file of (await readdir(fixtures)).sort()) {
     const lang: SourceLang = file.endsWith(".d.ts") ? "dts" : file.endsWith(".tsx") ? "tsx" : file.endsWith(".jsx") ? "jsx" : file.endsWith(".ts") ? "ts" : "js";
     const tasks = createParserTasks(source, lang);
     const results = parserNamesFor(lang).map(name => {
-      // Keep normalization outside this catch: adapter bugs must fail the test.
-      let parsed: ParseOutput;
-      try { parsed = tasks[name]!(); }
-      catch (error) { parsed = output(undefined, [error instanceof Error ? error.message : String(error)]); }
-      return { name, ...normalizeParseResult(parsed, name) };
+      const task = tasks[name]!;
+      let parsed: unknown;
+      try { parsed = task(); }
+      catch (error) {
+        const failure = output(undefined, [error instanceof Error ? error.message : String(error)]);
+        return { name, ...normalizeParseResult(failure, name) };
+      }
+      // Adapter and normalization bugs must fail the test, not become diagnostics.
+      return { name, ...normalizeParseResult(parsed, name, source) };
     });
     if (file.startsWith("invalid-")) {
       if (file === "invalid-export.js") {
@@ -39,7 +44,7 @@ for (const file of (await readdir(fixtures)).sort()) {
     const reference = results.find(result => result.name === "Oxc")!;
     for (const result of results.filter(result => result.name !== "Oxc")) {
       if (result.name === "SWC") {
-        assert.equal(result.comments, null, "SWC does not expose comments");
+        assert.equal(result.comments, null, `${result.name} does not expose comments`);
         assert.doesNotThrow(() => compareParseResult({ ...reference, comments: null }, result), result.name);
       } else assert.doesNotThrow(() => compareParseResult(reference, result), result.name);
     }
@@ -123,6 +128,10 @@ test("public API compares ASTs and diagnostic content", () => {
   const a = normalizeParseResult(output({ type: "Identifier", name: "x" }));
   const b = normalizeParseResult(output({ type: "Identifier", name: "y" }));
   assert.doesNotThrow(() => compareParseResult(a, a));
+  assert.doesNotThrow(() => compareParseResult(
+    normalizeParseResult(output({ type: "Identifier", name: "x" }, ["\u001b[31mRecovered\n error\u001b[0m"])),
+    normalizeParseResult(output({ type: "Identifier", name: "x" }, ["Recovered error"])),
+  ));
   assert.throws(() => compareParseResult(a, b), /\$\.ast\.name/);
   assert.throws(() => compareParseResult(a, { ...a, diagnostics: ["error"] }), /\$\.diagnostics\.length/);
   assert.throws(() => compareParseResult({ ...a, diagnostics: ["first"] }, { ...a, diagnostics: ["second"] }), /\$\.diagnostics\[0\]/);
@@ -137,6 +146,53 @@ test("parse failures use the same normalizer without adding a duplicate error", 
     assert.deepEqual(normalizeParseResult(output(undefined), parser).diagnostics, ["Returned no AST"]);
   }
   assert.deepEqual(parsed.diagnostics, ["\u001b[31mUnexpected\n token\u001b[0m"]);
+});
+
+test("raw results retain parser diagnostics through the public normalizer", () => {
+  const ast = { type: "Program", body: [] };
+  for (const parser of ["Babel", "Oxc", "Oxc (raw transfer)"]) {
+    const parsed = { program: ast, comments: [], errors: [{ message: "Recovered\n error" }] };
+    assert.deepEqual(normalizeParseResult(parsed, parser).diagnostics, ["Recovered error"]);
+  }
+  assert.deepEqual(normalizeParseResult({
+    program: ast, comments: [], diagnostics: [{ severity: "error", message: "Unexpected token" }],
+  }, "SWC Next").diagnostics, ["Unexpected token"]);
+  assert.deepEqual(normalizeParseResult({
+    program: ast, comments: [], diagnostics: [{ message: "Unexpected token", start: 3, end: 4 }],
+  }, "Yuku").diagnostics, ["Unexpected token at [3, 4)"]);
+});
+
+test("Acorn normalization distinguishes a hashbang from a leading line comment", () => {
+  for (const prefix of ["#!", "//"]) {
+    const source = `${prefix}/usr/bin/env node\nconst x = 1;`;
+    const tasks = createParserTasks(source, "js");
+    const raw = tasks.Acorn!();
+    assert.equal(Object.hasOwn(raw as object, "comments"), false);
+    assert.equal(Object.hasOwn(raw as object, "hashbang"), false);
+    const before = JSON.stringify(raw);
+    const result = normalizeParseResult(raw, "Acorn", source);
+    assert.equal(JSON.stringify(raw), before);
+    const reference = normalizeParseResult(tasks.Oxc!(), "Oxc");
+    assert.doesNotThrow(() => compareParseResult(result, reference));
+    assert.equal(result.comments!.length, prefix === "#!" ? 0 : 1);
+  }
+});
+
+test("Acorn comments stay associated with each original result", () => {
+  const firstTask = createParserTasks("// first\nconst x = 1;", "js").Acorn!;
+  const first = firstTask();
+  const second = createParserTasks("/* second */ const x = 1;", "js").Acorn!();
+  const repeated = firstTask();
+  Object.freeze(first);
+  assert.equal(Object.hasOwn(first as object, "comments"), false);
+  const a = normalizeParseResult(first, "Acorn");
+  const b = normalizeParseResult(second, "Acorn");
+  assert.deepEqual(a.ast, b.ast);
+  assert.deepEqual(a.comments, [{ type: "Line", value: " first" }]);
+  assert.deepEqual(b.comments, [{ type: "Block", value: " second " }]);
+  assert.throws(() => compareParseResult(a, b), /\$\.comments/);
+  assert.deepEqual(a, normalizeParseResult(repeated, "Acorn"));
+  assert.deepEqual(normalizeParseResult(createParserTasks("const x = 1;", "js").Acorn!(), "Acorn").comments, []);
 });
 
 test("comments normalize type and metadata while retaining whitespace, content, and order", () => {
@@ -168,9 +224,15 @@ test("comments normalize type and metadata while retaining whitespace, content, 
 });
 
 test("all exposed parser comments match an independently specified list", () => {
-  const tasks = createParserTasks('#!/usr/bin/env node\n//  one  \r\n/* two\r\n three */ const x=1; // last\n/** doc */', "js");
+  const source = '#!/usr/bin/env node\n//  one  \r\n/* two\r\n three */ const x=1; // last\n/** doc */';
+  const tasks = createParserTasks(source, "js");
   for (const parser of parserNamesFor("js")) {
-    const result = normalizeParseResult(tasks[parser]!(), parser);
+    const task = tasks[parser]!;
+    const first = task();
+    const second = task();
+    // Inspection must use that run's result, even after another parse.
+    const result = normalizeParseResult(first, parser, source);
+    assert.deepEqual(result, normalizeParseResult(second, parser, source));
     assert.deepEqual(result.comments, parser === "SWC" ? null : [
       { type: "Line", value: "  one  " },
       { type: "Block", value: " two\r\n three " },

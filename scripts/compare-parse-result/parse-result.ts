@@ -1,5 +1,17 @@
-import type { FlatComment, ParseOutput } from "../parsers.ts";
 import { normalizeComments } from "./normalize-comments.ts";
+
+export interface FlatComment {
+  type: string;
+  value: string;
+  start?: number;
+  end?: number;
+}
+
+export interface ParseOutput {
+  program: unknown;
+  comments: readonly FlatComment[] | null;
+  diagnostics: string[];
+}
 
 export interface NormalizedParseResult {
   ast: unknown;
