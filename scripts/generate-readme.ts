@@ -261,7 +261,7 @@ function getSystemInfo(): string {
   const totalMemoryGB = (totalmem() / (1024 * 1024 * 1024)).toFixed(0);
   const os = platform();
   const osArch = arch();
-  const osRelease = release();
+  const osRelease = os === "darwin" ? execFileSync("sw_vers", ["-productVersion"], { encoding: "utf8" }).trim() : release();
   const osName =
     os === "darwin" ? "macOS" : os === "win32" ? "Windows" : os === "linux" ? "Linux" : os;
 
@@ -305,7 +305,14 @@ pnpm install
 pnpm run load-files
 \`\`\`
 
-4. Run benchmarks:
+4. Validate parser outputs:
+
+\`\`\`bash
+pnpm preflight
+pnpm test:normalize
+\`\`\`
+
+5. Run benchmarks:
 
 \`\`\`bash
 pnpm bench
@@ -328,6 +335,11 @@ Native parsers (Oxc, SWC, SWC Next, Yuku) run through their respective bindings,
 \`lib.dom.d.ts\` is a global declaration script with no imports or exports. SWC parses it as a script rather than a module, because its npm binding otherwise rejects the file's \`...arguments\` parameter names under module strict mode.`;
 }
 
+async function generateVersionsSection(): Promise<string> {
+  const info = JSON.parse(await readFile("benchmark-info.json", "utf8")) as { date: string; parsers: Record<string, string> };
+  return [`Measured on ${info.date}.`, "", "| Parser | Published version |", "|--------|-------------------|", ...Object.entries(info.parsers).map(([name, version]) => `| ${name} | ${version} |`)].join("\n");
+}
+
 async function main() {
   const readme = [
     "# ECMAScript Parser Benchmark (npm)",
@@ -339,6 +351,8 @@ async function main() {
     getSystemInfo(),
     "",
     generateParsersSection(),
+    await generateVersionsSection(),
+    "",
     await generateBenchmarksSection(),
     generateRunSection(),
     "",
@@ -349,4 +363,4 @@ async function main() {
   console.log("README.md generated successfully!");
 }
 
-main().catch(console.error);
+main().catch(error => { console.error(error); process.exitCode = 1; });

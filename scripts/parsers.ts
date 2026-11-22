@@ -3,7 +3,7 @@ import * as babel from "@babel/parser";
 import * as oxc from "oxc-parser";
 import swc from "@swc/core";
 import { parseSync as swcNextParseSync, type Lang } from "@swc-next/parser";
-import type { ParseOptions as SwcParseOptions } from "@swc/types";
+import type { ParseOptions as SwcParseOptions } from "@swc/core";
 import { parse as yukuParseSync, type SourceLang } from "yuku";
 import files from "./files.json" with { type: "json" };
 import { acornComments } from "./compare-parse-result/acorn-comments.ts";
@@ -78,7 +78,7 @@ export function createParserTasks(source: string, lang: SourceLang): Record<stri
     const parsed = swcNextParseSync(source, {
       lang: lang as Lang,
       sourceType,
-      comments: "flat",
+      comments: "all",
       preserveParens: true,
     });
     parsed.program;

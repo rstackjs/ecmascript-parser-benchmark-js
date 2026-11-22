@@ -1,0 +1,71 @@
+{
+  "date": "2026-11-23",
+  "os": "macOS 26.6.2 (25G83)",
+  "cpu": "Apple M5 Max",
+  "arch": "arm64",
+  "cores": 18,
+  "memoryGB": 64,
+  "node": "24.20.0",
+  "pnpm": "11.28.11",
+  "rust": "1.98.0",
+  "zig": "0.17.0",
+  "power": "AC",
+  "inputCommit": "e25ab06730f743838b2c693d2126ea0162a661c6",
+  "inputs": {
+    "checker.ts": "ae146e68e6a201befeb45683310d13fc5eaa8875146daf046203a49648286ab1",
+    "typescript.js": "804f9c1b6c64568c39dd48eee88b77ba92d0b5d0f44f425bc96bcfe052824644",
+    "react.js": "ec670cc82d2aac81844bae49353d11bef1a8a21e727290a3bcc24a2928839496",
+    "lib.dom.d.ts": "d6b1eba8496bdd0eed6fc8a685768fe01b2da4a0388b5fe7df558290bffcf32f"
+  },
+  "parsers": {
+    "Acorn": "8.19.0",
+    "Babel": "8.1.3",
+    "Oxc": "0.159.0",
+    "Oxc (raw transfer)": "0.159.0",
+    "SWC": "@swc/core 1.16.22",
+    "SWC Next": "0.7.0",
+    "Yuku": "0.28.1"
+  },
+  "base": "b20ae4901848ea98e6539a6ab4a262a459c77022",
+  "workload": {
+    "warmupMs": 2000,
+    "timedMs": 10000,
+    "runs": 3,
+    "tinybench": "6.2.2"
+  },
+  "formalMeasurement": {
+    "start": "2026-11-23T01:19:41.232087+08:00",
+    "end": "2026-11-23T01:37:41.339621+08:00",
+    "command": [
+      "pnpm",
+      "bench"
+    ],
+    "exitCode": 0,
+    "successfulCombinations": 26,
+    "timedProcesses": 78,
+    "resultSha256": {
+      "lib_dom.json": "9d679cf0fb36f5bf3b51d6c8f80cddd1aa5183ce3e17c90a503311aac402fb55",
+      "react.json": "c064340cc00eb58766032e3b6c72c032dd2e7a9f46b546861b6e357984b52150",
+      "typescript.json": "e6f01101234202f972440833e7f663e8eb141abd5a98567a6b9f4e9cb5b26de3",
+      "checker.json": "ea1bbe849a0574d1e306303b18ea4dfc70eadc836015024918ec06edf821d34c"
+    }
+  },
+  "loadedBindings": [
+    {
+      "path": "/Users/bytedance/Library/Application Support/sutando/workspace/outputs/parser-refresh-20261123-003923/checkouts/ecmascript-parser-benchmark-js/node_modules/.pnpm/@swc+core-darwin-arm64@1.16.22/node_modules/@swc/core-darwin-arm64/swc.darwin-arm64.node",
+      "sha256": "9661030fa3f42388a4a7cb40b61f9cd1b66e1cc328e32b2f9e9374b8ac478641"
+    },
+    {
+      "path": "/Users/bytedance/Library/Application Support/sutando/workspace/outputs/parser-refresh-20261123-003923/checkouts/ecmascript-parser-benchmark-js/node_modules/.pnpm/@oxc-parser+binding-darwin-arm64@0.159.0/node_modules/@oxc-parser/binding-darwin-arm64/parser.darwin-arm64.node",
+      "sha256": "aece4d1f1345befbef0a06efdb860b656ee5cf2a4777d9028991a2772f23c9dd"
+    },
+    {
+      "path": "/Users/bytedance/Library/Application Support/sutando/workspace/outputs/parser-refresh-20261123-003923/checkouts/ecmascript-parser-benchmark-js/node_modules/.pnpm/@swc-next+parser-binding-darwin-arm64@0.7.0/node_modules/@swc-next/parser-binding-darwin-arm64/swc-next-parser.darwin-arm64.node",
+      "sha256": "0bdd86126432574658aebdf2fe8bdeeee30a9cc602cb765eb4ee1c435be413a2"
+    },
+    {
+      "path": "/Users/bytedance/Library/Application Support/sutando/workspace/outputs/parser-refresh-20261123-003923/checkouts/ecmascript-parser-benchmark-js/node_modules/.pnpm/@yuku-toolchain+darwin-arm64@0.28.1/node_modules/@yuku-toolchain/darwin-arm64/yuku.node",
+      "sha256": "97d928763d110c25cb74c512187ca62eeee24e5115ccdc7a74ebd4a2df550131"
+    }
+  ]
+}

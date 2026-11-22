@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Bench } from "tinybench";
 import * as oxc from "oxc-parser";
 import type { SourceLang } from "yuku";
@@ -115,7 +115,7 @@ async function benchFile(
   const parserLabelFor = (name: string) => parserLabel(name, parserNames);
 
   const runsByParser = new Map(parserNames.map((name) => [name, [] as RunResult[]]));
-  const check = spawnChild([new URL("./preflight.ts", import.meta.url).pathname, fileKey], "inherit");
+  const check = spawnChild([fileURLToPath(new URL("./preflight.ts", import.meta.url)), fileKey], "inherit");
   if (check.status !== 0) throw new Error(`Preflight failed for ${fileKey}`);
   {
     for (let run = 1; run <= BENCH_RUNS; run++) {
